@@ -1,0 +1,18 @@
+# Binaries
+kantorchat
+kantorchat.exe
+kantorchat-*
+*.exe
+
+# Test and local data
+downloads/
+cache/
+*.db
+*.db-wal
+*.db-shm
+*.key
+.partial/
+
+# OS specific
+.DS_Store
+Thumbs.db
