@@ -1,7 +1,7 @@
 # Binaries
-kantorchat
-kantorchat.exe
-kantorchat-*
+/kantorchat
+/kantorchat.exe
+/kantorchat-*
 *.exe
 
 # Test and local data
