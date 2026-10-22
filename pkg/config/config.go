@@ -31,8 +31,8 @@ func DefaultConfig() (*Config, error) {
 		userCache = userConfig
 	}
 
-	configDir := filepath.Join(userConfig, "kantorchat")
-	dataDir := filepath.Join(userCache, "kantorchat")
+	configDir := filepath.Join(userConfig, "kerykeion")
+	dataDir := filepath.Join(userCache, "kerykeion")
 	downloadsDir := filepath.Join(dataDir, "downloads")
 	partialDir := filepath.Join(downloadsDir, ".partial")
 	cacheDir := filepath.Join(dataDir, "cache")

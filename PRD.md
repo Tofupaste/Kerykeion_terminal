@@ -1,4 +1,4 @@
-# PRD — KantorChat: Chat Room & File Sharing P2P untuk LAN Kantor
+# PRD — Kerykeion Terminal (kerxt): Chat Room & File Sharing P2P untuk LAN Kantor
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@
 
 ## 1. Ringkasan
 
-KantorChat adalah aplikasi chat berbasis terminal yang berjalan **langsung antar-laptop di jaringan lokal kantor, tanpa internet dan tanpa server pusat atau VPS**. Setiap laptop menjalankan program yang sama, yang berperan ganda sebagai pengirim dan penerima.
+Kerykeion Terminal (`kerxt`) adalah aplikasi chat berbasis terminal yang berjalan **langsung antar-laptop di jaringan lokal kantor, tanpa internet dan tanpa server pusat atau VPS**. Setiap laptop menjalankan program yang sama, yang berperan ganda sebagai pengirim dan penerima.
 
 Fitur utama:
 - **Chat pribadi (DM)** dan **Room** bernama bebas (contoh: `ngobs`). Siapa pun cukup mengetik `/join ngobs` untuk masuk.
@@ -157,7 +157,7 @@ Prioritas: **M** = Must, **S** = Should, **C** = Could.
 | FR-70 | **Identitas room = nama** (huruf kecil, `a-z 0-9 - _`, 2–32 karakter). Nama dinormalisasi (`Ngobs` = `ngobs`). | M |
 | FR-71 | `/join <nama>`: kirim `ROOM_QUERY` ke jaringan (tunggu ≤ 3 detik, ulang 2×). Bila ada yang membalas `ROOM_HERE` → bergabung otomatis. Bila tidak ada → tawarkan: "Belum ada room 'ngobs'. Buat baru? (y/n)". | M |
 | FR-72 | `/room new <nama>`: buat room secara eksplisit; pembuat menjadi **master**. | M |
-| FR-73 | Argumen CLI: `kantorchat join ngobs` langsung membuka aplikasi dan masuk/buat room. | S |
+| FR-73 | Argumen CLI: `kerxt join ngobs` langsung membuka aplikasi dan masuk/buat room. | S |
 | FR-74 | Pesan room dikirim ke **semua anggota online** (fan-out langsung); untuk anggota offline dilayani outbox pengirim. Maks 100 anggota/room, 20 room/pengguna. | M |
 | FR-75 | Semua peristiwa room (`ROOM_JOIN`, `ROOM_LEAVE`, `ROOM_TRANSFER`, `ROOM_CLOSED`, pesan) **ditandatangani** pembuatnya sehingga dapat diteruskan oleh anggota mana pun. | M |
 | FR-76 | `/leave [nama]`: hanya **diri sendiri** yang keluar. Mengirim `ROOM_LEAVE` bertanda tangan; room tetap hidup untuk yang lain. Menampilkan konfirmasi; riwayat room di laptop ini dihapus (opsi `--simpan` mengekspor dulu). | M |
@@ -244,7 +244,7 @@ Prioritas: **M** = Must, **S** = Should, **C** = Could.
 ### 7.8 Diagnosis
 | ID | Kebutuhan | Prio |
 |---|---|---|
-| FR-60 | `/doctor` (juga `kantorchat doctor`): tampilkan interface/IP/subnet, hasil tes broadcast, status bind port, profil jaringan Windows (Public/Private), petunjuk firewall, dan peer terjangkau vs tidak, dengan saran perbaikan dalam bahasa awam. | M |
+| FR-60 | `/doctor` (juga `kerxt doctor`): tampilkan interface/IP/subnet, hasil tes broadcast, status bind port, profil jaringan Windows (Public/Private), petunjuk firewall, dan peer terjangkau vs tidak, dengan saran perbaikan dalam bahasa awam. | M |
 | FR-61 | Log ke file dengan rotasi; flag `--debug`. | S |
 
 ## 8. Kebutuhan Non-Fungsional
@@ -379,8 +379,8 @@ Satu PC kabel yang selalu menyala menjalankan mode `hub`: store-and-forward, ars
 
 **Struktur direktori** (via `os.UserConfigDir`/`os.UserCacheDir`; Windows di `%APPDATA%`):
 ```
-<config>/kantorchat/  identity.key (0600) · config.json · history.db
-<data>/kantorchat/    downloads/ · downloads/.partial/ · cache/
+<config>/kerykeion/  identity.key (0600) · config.json · history.db
+<data>/kerykeion/    downloads/ · downloads/.partial/ · cache/
 ```
 
 ## 11. Keamanan & Privasi

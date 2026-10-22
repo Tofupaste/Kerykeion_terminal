@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"kantorchat/pkg/config"
-	"kantorchat/pkg/discovery"
+	"kerykeion/pkg/config"
+	"kerykeion/pkg/discovery"
 )
 
 type DiagnosticResult struct {
@@ -113,7 +113,7 @@ func RunDiagnostics(cfg *config.Config, disc *discovery.Discovery) DiagnosticRes
 			res.Suggestions = append(res.Suggestions, "Windows Firewall: Pastikan profil jaringan disetel ke 'Private network' (bukan Public).")
 			res.Suggestions = append(res.Suggestions, fmt.Sprintf("Bila rekan tidak terlihat, pastikan inbound port TCP %d dan UDP %d diizinkan di Windows Firewall.", cfg.TCPPort, cfg.UDPPort))
 		case "darwin":
-			res.Suggestions = append(res.Suggestions, "macOS: Pastikan izin 'Local Network' aktif untuk aplikasi terminal/KantorChat di System Settings > Privacy & Security.")
+			res.Suggestions = append(res.Suggestions, "macOS: Pastikan izin 'Local Network' aktif untuk aplikasi terminal/Kerykeion Terminal di System Settings > Privacy & Security.")
 		case "linux":
 			res.Suggestions = append(res.Suggestions, fmt.Sprintf("Linux: Jika memakai ufw/iptables, izinkan port: 'sudo ufw allow %d/tcp && sudo ufw allow %d/udp'.", cfg.TCPPort, cfg.UDPPort))
 		}
@@ -130,7 +130,7 @@ func RunDiagnostics(cfg *config.Config, disc *discovery.Discovery) DiagnosticRes
 
 func FormatReport(res DiagnosticResult) string {
 	var sb strings.Builder
-	sb.WriteString("=== HASIL DIAGNOSIS JARINGAN KANTORCHAT ===\n\n")
+	sb.WriteString("=== HASIL DIAGNOSIS JARINGAN KERYKEION TERMINAL ===\n\n")
 	sb.WriteString(fmt.Sprintf("Sistem Operasi: %s\n\n", res.OS))
 
 	sb.WriteString("Interface Jaringan Aktif:\n")

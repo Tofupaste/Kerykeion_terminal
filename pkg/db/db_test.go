@@ -7,7 +7,7 @@ import (
 )
 
 func TestDatabaseOperationsAndPruning(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "kantorchat-test-db-*")
+	tempDir, err := os.MkdirTemp("", "kerxt-test-db-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

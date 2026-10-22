@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/protocol"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/protocol"
 )
 
 type PeerInfo struct {

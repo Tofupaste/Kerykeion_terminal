@@ -139,7 +139,7 @@ var CommandCatalog = map[string]CommandHelp{
 		Command:     "/quit",
 		Summary:     "Keluar dari aplikasi",
 		Usage:       "/quit",
-		Description: "Menutup aplikasi KantorChat dengan aman.",
+		Description: "Menutup aplikasi Kerykeion Terminal dengan aman.",
 		Example:     "/quit",
 		CommonError: "Tidak ada.",
 	},
@@ -205,7 +205,7 @@ func min(vals ...int) int {
 
 func FormatQuickHelp() string {
 	var sb strings.Builder
-	sb.WriteString("=== PANDUAN PERINTAH KANTORCHAT ===\n")
+	sb.WriteString("=== PANDUAN PERINTAH KERYKEION TERMINAL ===\n")
 	sb.WriteString("Perintah Utama:\n")
 	sb.WriteString("  /who                Lihat siapa saja rekan yang sedang online\n")
 	sb.WriteString("  /join <room>        Masuk ke room (contoh: /join ngobs)\n")

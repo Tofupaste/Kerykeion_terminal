@@ -1,91 +1,119 @@
-# KantorChat (P2P LAN)
+# Kerykeion Terminal (`kerxt`)
 
-KantorChat adalah aplikasi obrolan (*chat room*) dan transfer file terdistribusi (P2P) berbasis terminal yang beroperasi langsung antar-laptop di jaringan lokal kantor (LAN), **tanpa koneksi internet dan tanpa server pusat atau VPS**.
+Kerykeion Terminal adalah aplikasi obrolan (*chat room*) dan transfer berkas P2P (*peer-to-peer*) berbasis terminal untuk jaringan lokal kantor (LAN), **tanpa internet dan tanpa server pusat atau VPS**.
+
+Cukup ketik `kerxt` di terminal, aplikasi langsung aktif dan siap digunakan.
 
 ---
 
 ## Fitur Utama
 
-- **Pesan Pribadi (DM) & Room Tanpa Host**: Masuk room cukup mengetik `/join <nama_room>` (misal `/join ngobs`). Room tetap aktif selama minimal 1 anggota terhubung.
-- **Kirim Berkas & Media dengan Resume Otomatis**: Berkas dipecah menjadi *chunk* 256 KB dengan verifikasi integritas penuh SHA-256 dan pelacakan bitmap di disk. Jika koneksi WiFi terputus (saat berpindah Access Point), pengiriman akan otomatis melanjutkan (*resume*) tanpa mengulang dari awal.
-- **Model Media di Room (Umumkan lalu Tarik)**: Gambar diumumkan beserta *thumbnail* ringan (≤ 8 KB). Berkas diunduh dengan `/get <nomor>`, mendukung multi-sumber dari anggota room lain saat pengirim asli sedang luring (*offline*).
+- **Aktivasi Cepat**: Ketik `kerxt` di terminal untuk langsung masuk ke antarmuka visual (TUI).
+- **Pesan Pribadi (DM) & Room Tanpa Host**: Masuk room cukup mengetik `/join <nama_room>` (misal `/join ngobs`). Room tetap hidup selama minimal 1 anggota terhubung.
+- **Kirim Berkas & Media dengan Resume Otomatis**: Berkas dipecah menjadi *chunk* 256 KB dengan verifikasi integritas penuh SHA-256 dan pelacakan bitmap di disk. Jika koneksi WiFi terputus saat berpindah Access Point (AP), pengiriman akan otomatis melanjutkan (*resume*) tanpa mengulang dari awal.
+- **Model Media di Room (Umumkan lalu Tarik)**: Gambar diumumkan beserta thumbnail ringan (≤ 8 KB). Berkas diunduh dengan perintah `/get <nomor>`, mendukung multi-sumber dari anggota room lain saat pengirim asli sedang luring (*offline*).
 - **Keamanan & Kriptografi**:
-  - Identitas persisten berbasis kunci **Ed25519** tersimpan di direktori pengguna (`os.UserConfigDir`) dengan hak akses `0600`.
-  - `peer_id` = sidik jari SHA-256 dari kunci publik.
+  - Identitas persisten berbasis pasangan kunci **Ed25519** tersimpan di direktori pengguna (`~/.config/kerykeion/identity.key`) dengan hak akses ketat `0600`.
+  - `peer_id` merupakan sidik jari SHA-256 dari kunci publik.
   - Setiap pesan dan peristiwa room ditandatangani secara digital (*cryptographically signed*).
   - Enkripsi transport **TLS 1.3** dengan sertifikat *self-signed* dan penyematan sidik jari (*fingerprint pinning* / TOFU).
 - **Penyimpanan Lokal & Retensi 30 Hari**: Basis data lokal SQLite (*pure Go* tanpa CGO melalui `modernc.org/sqlite`) beroperasi dalam mode WAL dengan pemangkasan otomatis riwayat lebih dari 30 hari.
-- **Diagnosa Mandiri (`/doctor`)**: Alat pengecekan interface jaringan, port binding TCP/UDP, broadcast, serta petunjuk konfigurasi firewall Windows/Linux/macOS dalam bahasa yang mudah dipahami.
-- **Antarmuka Ganda (TUI & REPL)**: Antarmuka visual penuh terminal (*Bubble Tea TUI*) dengan sidebar room dan rekan, serta mode REPL baris perintah untuk pengujian otomatis atau terminal minimalis.
-- **Distribusi Tunggal Tanpa Ketergantungan**: Satu file biner mandiri (*single static binary* < 20 MB) untuk Windows, Linux, dan macOS.
+- **Diagnosa Mandiri (`kerxt doctor`)**: Alat pengecekan interface jaringan, status bind port TCP/UDP, broadcast, serta petunjuk konfigurasi firewall Linux, macOS, dan Windows dalam bahasa yang mudah dipahami.
+- **Antarmuka Ganda (TUI & REPL)**: TUI penuh (Bubble Tea) dengan sidebar interaktif, serta mode REPL baris perintah untuk terminal minimalis atau otomatisasi script.
+- **Biner Mandiri**: Berkas biner tunggal (*single static binary* ~12 MB, di bawah batas PRD 20 MB) tanpa ketergantungan runtime eksternal.
 
 ---
 
-## Struktur Direktori Proyek
+## Panduan Instalasi
 
+### 1. CachyOS / Arch Linux
+
+Buka terminal dan jalankan:
+
+```bash
+# 1. Pastikan compiler Go dan git terpasang
+sudo pacman -S go git
+
+# 2. Clone repositori
+git clone https://github.com/your-org/kerykeion_terminal.git
+cd kerykeion_terminal
+
+# 3. Kompilasi dan pasang biner kerxt ke ~/.local/bin
+go build -ldflags="-s -w" -o kerxt ./cmd/kerxt
+mkdir -p ~/.local/bin
+cp kerxt ~/.local/bin/kerxt
+chmod +x ~/.local/bin/kerxt
+
+# 4. Pastikan ~/.local/bin ada di PATH (bila belum ada di .zshrc atau .bashrc)
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
-.
-├── PRD.md                       # Dokumen Persyaratan Produk
-├── README.md                    # Dokumentasi Penggunaan
-├── cmd/
-│   └── kantorchat/              # Titik masuk program utama (main.go & e2e_test.go)
-└── pkg/
-    ├── config/                  # Pengaturan direktori & konfigurasi aplikasi
-    ├── db/                      # SQLite (modernc), skema, indeks, & retensi 30 hari
-    ├── discovery/               # Penemuan peer berbasis broadcast UDP, multicast, & deteksi interface
-    ├── doctor/                  # Diagnosa jaringan LAN, status port, & saran firewall
-    ├── identity/                # Kunci Ed25519, peer_id, tanda tangan digital, & verifikasi
-    ├── messaging/               # Pesan teks DM, fan-out room, outbox dengan backoff, & ekstraksi tautan
-    ├── protocol/                # Framing biner, tipe payload, & serialisasi
-    ├── room/                    # Siklus hidup room tanpa host, sinkronisasi riwayat, & tombstone
-    ├── transfer/                # Transfer file per-chunk (256 KB), bitmap resume, sanitasi nama, & thumbnail
-    ├── transport/               # Koneksi TCP + TLS 1.3 dengan fingerprint pinning
-    └── ui/                      # TUI Bubble Tea, REPL baris perintah, katalog /help, & autokompleksi Tab
+
+Sekarang kamu dapat langsung mengetik `kerxt` di mana saja.
+
+---
+
+### 2. Fedora / RHEL
+
+Buka terminal dan jalankan:
+
+```bash
+# 1. Pasang compiler Go dan git
+sudo dnf install -y golang git
+
+# 2. Clone repositori
+git clone https://github.com/your-org/kerykeion_terminal.git
+cd kerykeion_terminal
+
+# 3. Kompilasi dan pasang biner kerxt
+go build -ldflags="-s -w" -o kerxt ./cmd/kerxt
+mkdir -p ~/.local/bin
+cp kerxt ~/.local/bin/kerxt
+chmod +x ~/.local/bin/kerxt
+
+# 4. Pastikan ~/.local/bin aktif di PATH
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---
 
-## Cara Kompilasi
+### 3. Kompilasi Silang untuk Windows dan macOS
 
-Pastikan telah terpasang compiler Go (versi 1.22 atau yang lebih baru).
-
-### 1. Kompilasi untuk Sistem Saat Ini (Linux)
 ```bash
-go build -ldflags="-s -w" -o kantorchat ./cmd/kantorchat
-```
+# Untuk Windows (64-bit)
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o kerxt.exe ./cmd/kerxt
 
-### 2. Kompilasi Silang untuk Windows (64-bit)
-```bash
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o kantorchat.exe ./cmd/kantorchat
-```
-
-### 3. Kompilasi Silang untuk macOS (Apple Silicon arm64)
-```bash
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o kantorchat-darwin-arm64 ./cmd/kantorchat
+# Untuk macOS (Apple Silicon arm64)
+GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o kerxt-darwin-arm64 ./cmd/kerxt
 ```
 
 ---
 
 ## Cara Menjalankan
 
-### Menjalankan Antarmuka Visual (TUI)
+### 1. Membuka Aplikasi (TUI Visual)
+Cukup ketik perintah berikut:
 ```bash
-./kantorchat
+kerxt
 ```
 
-### Menjalankan Diagnosa Jaringan
+### 2. Diagnosa Jaringan dan Firewall
+Gunakan perintah ini untuk memeriksa apakah interface jaringan, port 42100/42101, dan broadcast LAN berfungsi normal:
 ```bash
-./kantorchat doctor
+kerxt doctor
 ```
 
-### Langsung Masuk ke Room Tertentu
+### 3. Langsung Masuk ke Room
+Kamu bisa langsung membuka aplikasi dan bergabung ke room tertentu:
 ```bash
-./kantorchat join ngobs
+kerxt join ngobs
 ```
 
-### Menjalankan Mode REPL (Baris Perintah)
+### 4. Mode REPL (Baris Perintah Sederhana)
+Bila ingin antarmuka baris demi baris tanpa rendering TUI penuh:
 ```bash
-./kantorchat --repl
+kerxt --repl
 ```
 
 ---
@@ -94,24 +122,39 @@ GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o kantorchat-darwin-arm64 ./
 
 | Perintah | Fungsi | Contoh |
 |---|---|---|
-| `/help` | Menampilkan panduan bantuan perintah | `/help` atau `/help join` |
-| `/who` | Menampilkan rekan yang sedang online di LAN | `/who` |
-| `/dm <rekan>` | Beralih ke pesan pribadi dengan rekan | `/dm aria` |
+| `/help` | Menampilkan bantuan perintah | `/help` atau `/help join` |
+| `/who` | Menampilkan rekan yang online di LAN | `/who` |
+| `/dm <rekan>` | Membuka percakapan pribadi dengan rekan | `/dm aria` |
 | `/join <room>` | Masuk ke room (buat baru bila belum ada) | `/join ngobs` |
 | `/room new <room>` | Membuat room baru secara eksplisit | `/room new proyek-a` |
 | `/room list` | Melihat daftar room yang diikuti | `/room list` |
 | `/room info <room>` | Melihat informasi detail dan anggota room | `/room info ngobs` |
 | `/room transfer <room> <rekan>` | Mengalihkan peran master room ke rekan lain | `/room transfer ngobs budi` |
 | `/go <target>` | Berpindah fokus percakapan aktif | `/go ngobs` |
-| `/send <path_file>` | Mengirim file atau gambar ke percakapan aktif | `/send /home/user/foto.jpg` |
-| `/get <no>` | Mengunduh file dari pengumuman room | `/get 1` |
-| `/leave [room]` | Keluar dari room saat ini (hanya diri sendiri) | `/leave ngobs` |
-| `/disband [room]` | Membubarkan room secara permanen (khusus master) | `/disband ngobs` |
+| `/send <path_file>` | Mengirim berkas atau gambar ke percakapan aktif | `/send /home/user/dokumen.pdf` |
+| `/get <no>` | Mengunduh berkas dari pengumuman room | `/get 1` |
+| `/leave [room]` | Keluar dari room saat ini | `/leave ngobs` |
+| `/disband [room]` | Membubarkan room permanen (khusus master) | `/disband ngobs` |
 | `/name <baru>` | Mengubah nama tampilan kamu di jaringan | `/name Budi` |
-| `/open <no>` | Membuka tautan web yang diterima di peramban | `/open 1` |
+| `/open <no>` | Membuka tautan web di browser default | `/open 1` |
 | `/doctor` | Memeriksa status port, jaringan, dan firewall | `/doctor` |
-| `/add <ip:port>` | Menambahkan IP rekan secara manual bila broadcast dibatasi | `/add 10.10.40.50:42100` |
-| `/quit` | Keluar dari aplikasi KantorChat | `/quit` |
+| `/add <ip:port>` | Menghubungkan langsung jika broadcast dibatasi AP | `/add 10.10.40.50:42100` |
+| `/quit` | Keluar dari Kerykeion Terminal | `/quit` |
+
+---
+
+## Konfigurasi & Lokasi Data
+
+Kerykeion Terminal menyimpan data secara lokal sesuai standar OS:
+
+- **Konfigurasi & Database**:
+  - Linux: `~/.config/kerykeion/` (`identity.key`, `config.json`, `history.db`)
+  - Windows: `%APPDATA%\kerykeion\`
+  - macOS: `~/Library/Application Support/kerykeion/`
+- **Unduhan & Berkas Parsial**:
+  - Linux: `~/.cache/kerykeion/downloads/` dan `~/.cache/kerykeion/downloads/.partial/`
+  - Windows: `%LOCALAPPDATA%\kerykeion\downloads\`
+  - macOS: `~/Library/Caches/kerykeion/downloads/`
 
 ---
 
@@ -122,4 +165,11 @@ Seluruh pengujian unit dan pengujian integrasi *End-to-End* (E2E) dapat dijalank
 ```bash
 go test -v ./...
 ```
-Semua modul mencakup pengujian kunci kriptografi, *framing protocol*, integritas SQLite, sanitasi nama berkas, mekanisme *resume* berkas dari disk bitmap, serta komunikasi pertukaran pesan TLS dua arah.
+
+Pengujian mencakup:
+1. Kriptografi Ed25519 dan verifikasi tanda tangan digital.
+2. Protokol framing biner dan batas ukuran payload.
+3. Operasi database SQLite, indexing, dan retensi 30 hari.
+4. Normalisasi room dan transisi state master.
+5. Sanitasi nama berkas, deteksi ekstensi berbahaya, dan bitmap resume berkas dari disk.
+6. Komunikasi TLS dua arah antara dua peer simultan (Alice & Bob).

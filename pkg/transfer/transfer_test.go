@@ -45,14 +45,14 @@ func TestDangerousExtension(t *testing.T) {
 }
 
 func TestFileHashComputation(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "kantorchat-test-hash-*")
+	tempDir, err := os.MkdirTemp("", "kerxt-test-hash-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
 	filePath := filepath.Join(tempDir, "sample.txt")
-	content := []byte("KantorChat P2P office LAN file sharing test")
+	content := []byte("Kerykeion Terminal P2P office LAN file sharing test")
 	if err := os.WriteFile(filePath, content, 0644); err != nil {
 		t.Fatalf("failed to write test file: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestFileHashComputation(t *testing.T) {
 }
 
 func TestResumeWithDiskBitmap(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "kantorchat-test-resume-*")
+	tempDir, err := os.MkdirTemp("", "kerxt-test-resume-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/protocol"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/protocol"
 )
 
 type FrameHandler func(connID string, frameType byte, payload []byte, remotePeerID string)

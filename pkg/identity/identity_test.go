@@ -7,7 +7,7 @@ import (
 )
 
 func TestIdentityGenerationAndPersistence(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "kantorchat-test-id-*")
+	tempDir, err := os.MkdirTemp("", "kerxt-test-id-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
@@ -44,7 +44,7 @@ func TestIdentityGenerationAndPersistence(t *testing.T) {
 }
 
 func TestSigningAndVerification(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "kantorchat-test-sig-*")
+	tempDir, err := os.MkdirTemp("", "kerxt-test-sig-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}

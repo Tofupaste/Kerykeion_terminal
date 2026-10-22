@@ -10,14 +10,14 @@ import (
 	"sync"
 	"time"
 
-	"kantorchat/pkg/config"
-	"kantorchat/pkg/db"
-	"kantorchat/pkg/discovery"
-	"kantorchat/pkg/doctor"
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/messaging"
-	"kantorchat/pkg/room"
-	"kantorchat/pkg/transfer"
+	"kerykeion/pkg/config"
+	"kerykeion/pkg/db"
+	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/messaging"
+	"kerykeion/pkg/room"
+	"kerykeion/pkg/transfer"
 )
 
 type REPL struct {
@@ -89,7 +89,7 @@ func (r *REPL) Prompt() {
 
 func (r *REPL) Run() {
 	r.running = true
-	r.Printf("KantorChat REPL siap. Ketik /help untuk daftar perintah.\n")
+	r.Printf("Kerykeion Terminal REPL siap. Ketik /help untuk daftar perintah.\n")
 	r.Prompt()
 
 	scanner := bufio.NewScanner(r.in)

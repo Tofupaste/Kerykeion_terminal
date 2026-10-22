@@ -10,17 +10,17 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"kantorchat/pkg/config"
-	"kantorchat/pkg/db"
-	"kantorchat/pkg/discovery"
-	"kantorchat/pkg/doctor"
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/messaging"
-	"kantorchat/pkg/protocol"
-	"kantorchat/pkg/room"
-	"kantorchat/pkg/transfer"
-	"kantorchat/pkg/transport"
-	"kantorchat/pkg/ui"
+	"kerykeion/pkg/config"
+	"kerykeion/pkg/db"
+	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/messaging"
+	"kerykeion/pkg/protocol"
+	"kerykeion/pkg/room"
+	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
+	"kerykeion/pkg/ui"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func main() {
 	flag.BoolVar(&debugMode, "debug", false, "Aktifkan log debug rinci")
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Penggunaan: kantorchat [perintah] [opsi]\n\n")
+		fmt.Fprintf(os.Stderr, "Penggunaan: kerxt [perintah] [opsi]\n\n")
 		fmt.Fprintf(os.Stderr, "Perintah:\n")
 		fmt.Fprintf(os.Stderr, "  join <nama_room>    Langsung masuk atau buat room tertentu\n")
 		fmt.Fprintf(os.Stderr, "  doctor              Jalankan tes diagnosa jaringan dan firewall\n\n")
@@ -92,7 +92,7 @@ func main() {
 	// First run wizard if display name is empty
 	if cfg.DisplayName == "" {
 		fmt.Println("==================================================")
-		fmt.Println("        Selamat Datang di KantorChat (P2P LAN)    ")
+		fmt.Println("     Selamat Datang di Kerykeion Terminal (P2P)   ")
 		fmt.Println("==================================================")
 		fmt.Println("Aplikasi chat & file sharing langsung antar-laptop")
 		fmt.Println("tanpa internet dan tanpa server pusat.")

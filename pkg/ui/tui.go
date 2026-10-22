@@ -12,15 +12,15 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"kantorchat/pkg/config"
-	"kantorchat/pkg/db"
-	"kantorchat/pkg/discovery"
-	"kantorchat/pkg/doctor"
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/messaging"
-	"kantorchat/pkg/protocol"
-	"kantorchat/pkg/room"
-	"kantorchat/pkg/transfer"
+	"kerykeion/pkg/config"
+	"kerykeion/pkg/db"
+	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/messaging"
+	"kerykeion/pkg/protocol"
+	"kerykeion/pkg/room"
+	"kerykeion/pkg/transfer"
 )
 
 type AppModel struct {
@@ -604,7 +604,7 @@ func (m *AppModel) updateViewportContent() {
 	var sb strings.Builder
 
 	if m.activeTarget == "" {
-		sb.WriteString("Selamat datang di KantorChat (P2P LAN)!\n\n")
+		sb.WriteString("Selamat datang di Kerykeion Terminal (P2P LAN)!\n\n")
 		sb.WriteString("Ketik /join <nama_room> untuk masuk atau buat room.\n")
 		sb.WriteString("Ketik /who untuk melihat rekan yang aktif.\n")
 		sb.WriteString("Ketik /help untuk panduan lengkap perintah.\n\n")
@@ -668,7 +668,7 @@ func (m *AppModel) View() string {
 		Height(m.height - 4)
 
 	var sb strings.Builder
-	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("KANTORCHAT") + "\n")
+	sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("86")).Render("KERYKEION") + "\n")
 	sb.WriteString(fmt.Sprintf("ID: %s\n", m.idMgr.DisplayName()) + "\n")
 
 	sb.WriteString(lipgloss.NewStyle().Bold(true).Render("ROOMS:") + "\n")

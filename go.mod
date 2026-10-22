@@ -1,4 +1,4 @@
-module kantorchat
+module kerykeion
 
 go 1.27.3
 

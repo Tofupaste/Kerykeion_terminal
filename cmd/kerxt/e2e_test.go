@@ -6,25 +6,25 @@ import (
 	"testing"
 	"time"
 
-	"kantorchat/pkg/config"
-	"kantorchat/pkg/db"
-	"kantorchat/pkg/discovery"
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/messaging"
-	"kantorchat/pkg/protocol"
-	"kantorchat/pkg/room"
-	"kantorchat/pkg/transfer"
-	"kantorchat/pkg/transport"
+	"kerykeion/pkg/config"
+	"kerykeion/pkg/db"
+	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/messaging"
+	"kerykeion/pkg/protocol"
+	"kerykeion/pkg/room"
+	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
 )
 
 func TestE2EMessagingAndFileTransfer(t *testing.T) {
-	tempDirAlice, err := os.MkdirTemp("", "kantorchat-e2e-alice-*")
+	tempDirAlice, err := os.MkdirTemp("", "kerxt-e2e-alice-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir alice: %v", err)
 	}
 	defer os.RemoveAll(tempDirAlice)
 
-	tempDirBob, err := os.MkdirTemp("", "kantorchat-e2e-bob-*")
+	tempDirBob, err := os.MkdirTemp("", "kerxt-e2e-bob-*")
 	if err != nil {
 		t.Fatalf("failed to create temp dir bob: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// 1. Test DM send Alice -> Bob
-	dmText := "Halo Bob dari Alice via KantorChat P2P!"
+	dmText := "Halo Bob dari Alice via Kerykeion Terminal P2P!"
 	msgRec, err := msgAlice.SendDM(idBob.PeerID(), dmText)
 	if err != nil {
 		t.Fatalf("Alice failed to send DM: %v", err)

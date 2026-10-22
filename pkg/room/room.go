@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"kantorchat/pkg/db"
-	"kantorchat/pkg/discovery"
-	"kantorchat/pkg/identity"
-	"kantorchat/pkg/protocol"
-	"kantorchat/pkg/transport"
+	"kerykeion/pkg/db"
+	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/identity"
+	"kerykeion/pkg/protocol"
+	"kerykeion/pkg/transport"
 )
 
 var (
