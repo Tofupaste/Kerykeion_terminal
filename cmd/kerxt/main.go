@@ -15,6 +15,7 @@ import (
 	"kerykeion/pkg/discovery"
 	"kerykeion/pkg/doctor"
 	"kerykeion/pkg/identity"
+	"kerykeion/pkg/installer"
 	"kerykeion/pkg/messaging"
 	"kerykeion/pkg/protocol"
 	"kerykeion/pkg/room"
@@ -43,6 +44,8 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Penggunaan: kerxt [perintah] [opsi]\n\n")
 		fmt.Fprintf(os.Stderr, "Perintah:\n")
+		fmt.Fprintf(os.Stderr, "  install             Pasang otomatis (deteksi OS, kompilasi, salin biner, setel PATH)\n")
+		fmt.Fprintf(os.Stderr, "  uninstall           Hapus instalasi biner (gunakan --purge untuk bersihkan data)\n")
 		fmt.Fprintf(os.Stderr, "  join <nama_room>    Langsung masuk atau buat room tertentu\n")
 		fmt.Fprintf(os.Stderr, "  doctor              Jalankan tes diagnosa jaringan dan firewall\n\n")
 		fmt.Fprintf(os.Stderr, "Opsi:\n")
@@ -56,6 +59,34 @@ func main() {
 
 	if len(args) > 0 {
 		switch strings.ToLower(args[0]) {
+		case "install":
+			targetDir := ""
+			if len(args) > 1 {
+				targetDir = args[1]
+			}
+			err := installer.RunInstall(installer.InstallOptions{
+				TargetDir: targetDir,
+			})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Galat saat instalasi: %v\n", err)
+				os.Exit(1)
+			}
+			return
+
+		case "uninstall":
+			purge := false
+			for _, a := range args[1:] {
+				if a == "--purge" || a == "-purge" {
+					purge = true
+				}
+			}
+			err := installer.RunUninstall(purge)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Galat saat uninstall: %v\n", err)
+				os.Exit(1)
+			}
+			return
+
 		case "doctor":
 			cfg, err := config.LoadConfig(customDir)
 			if err != nil {

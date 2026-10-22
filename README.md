@@ -26,54 +26,61 @@ Cukup ketik `kerxt` di terminal, aplikasi langsung aktif dan siap digunakan.
 
 ## Panduan Instalasi
 
-### 1. CachyOS / Arch Linux
+### 1. Instalasi Otomatis (Direkomendasikan)
 
-Buka terminal dan jalankan:
+Kerykeion Terminal dilengkapi dengan **installer otomatis** yang melakukan deteksi sistem, kompilasi produksi, penyalinan biner ke `~/.local/bin`, dan konfigurasi PATH secara otomatis:
 
 ```bash
-# 1. Pastikan compiler Go dan git terpasang
-sudo pacman -S go git
-
-# 2. Clone repositori
+# Clone repositori
 git clone https://github.com/your-org/kerykeion_terminal.git
 cd kerykeion_terminal
 
-# 3. Kompilasi dan pasang biner kerxt ke ~/.local/bin
-go build -ldflags="-s -w" -o kerxt ./cmd/kerxt
-mkdir -p ~/.local/bin
-cp kerxt ~/.local/bin/kerxt
-chmod +x ~/.local/bin/kerxt
-
-# 4. Pastikan ~/.local/bin ada di PATH (bila belum ada di .zshrc atau .bashrc)
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+# Jalankan installer satu langkah
+./install.sh
 ```
 
-Sekarang kamu dapat langsung mengetik `kerxt` di mana saja.
+Atau jika kamu sudah memiliki biner `kerxt`:
+```bash
+kerxt install
+```
+
+Installer otomatis ini akan:
+1. Mendeteksi distro dan arsitektur CPU (CachyOS, Fedora, Ubuntu, macOS, dll.).
+2. Memastikan Go compiler tersedia (memberikan panduan perintah instalasi Go jika belum ada).
+3. Mengompilasi biner produksi teroptimasi (`-ldflags="-s -w"`).
+4. Menyalin biner ke `~/.local/bin/kerxt` dan menyetel izin eksekusi (`chmod +x`).
+5. Memeriksa status `$PATH` dan otomatis menambahkan konfigurasi ke file shell kamu (`~/.bashrc`, `~/.zshrc`, atau `~/.config/fish/config.fish`) bila belum ada.
 
 ---
 
-### 2. Fedora / RHEL
+### 2. Panduan Manual per Distro
 
-Buka terminal dan jalankan:
-
+#### CachyOS / Arch Linux
 ```bash
-# 1. Pasang compiler Go dan git
+sudo pacman -S go git
+cd /path/to/kerykeion_terminal
+./install.sh
+```
+
+#### Fedora / RHEL
+```bash
 sudo dnf install -y golang git
+cd /path/to/kerykeion_terminal
+./install.sh
+```
 
-# 2. Clone repositori
-git clone https://github.com/your-org/kerykeion_terminal.git
-cd kerykeion_terminal
+---
 
-# 3. Kompilasi dan pasang biner kerxt
-go build -ldflags="-s -w" -o kerxt ./cmd/kerxt
-mkdir -p ~/.local/bin
-cp kerxt ~/.local/bin/kerxt
-chmod +x ~/.local/bin/kerxt
+### 3. Cara Menghapus Instalasi (Uninstall)
 
-# 4. Pastikan ~/.local/bin aktif di PATH
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
+Untuk menghapus biner:
+```bash
+kerxt uninstall
+```
+
+Untuk menghapus biner sekaligus membersihkan seluruh data riwayat dan cache:
+```bash
+kerxt uninstall --purge
 ```
 
 ---
