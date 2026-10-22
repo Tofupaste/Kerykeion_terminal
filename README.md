@@ -1,182 +1,119 @@
-# Kerykeion Terminal (`kerxt`)
+# Kerykeion Terminal
 
-Kerykeion Terminal adalah aplikasi obrolan (*chat room*) dan transfer berkas P2P (*peer-to-peer*) berbasis terminal untuk jaringan lokal kantor (LAN), **tanpa internet dan tanpa server pusat atau VPS**.
+Aplikasi chat dan transfer berkas P2P untuk jaringan lokal kantor (LAN), berjalan langsung antar-laptop tanpa server pusat atau koneksi internet.
 
-Cukup ketik `kerxt` di terminal, aplikasi langsung aktif dan siap digunakan.
+## Cara Pasang
 
----
+### Menggunakan Installer (Rekomendasi)
 
-## Fitur Utama
-
-- **Aktivasi Cepat**: Ketik `kerxt` di terminal untuk langsung masuk ke antarmuka visual (TUI).
-- **Pesan Pribadi (DM) & Room Tanpa Host**: Masuk room cukup mengetik `/join <nama_room>` (misal `/join ngobs`). Room tetap hidup selama minimal 1 anggota terhubung.
-- **Kirim Berkas & Media dengan Resume Otomatis**: Berkas dipecah menjadi *chunk* 256 KB dengan verifikasi integritas penuh SHA-256 dan pelacakan bitmap di disk. Jika koneksi WiFi terputus saat berpindah Access Point (AP), pengiriman akan otomatis melanjutkan (*resume*) tanpa mengulang dari awal.
-- **Model Media di Room (Umumkan lalu Tarik)**: Gambar diumumkan beserta thumbnail ringan (≤ 8 KB). Berkas diunduh dengan perintah `/get <nomor>`, mendukung multi-sumber dari anggota room lain saat pengirim asli sedang luring (*offline*).
-- **Keamanan & Kriptografi**:
-  - Identitas persisten berbasis pasangan kunci **Ed25519** tersimpan di direktori pengguna (`~/.config/kerykeion/identity.key`) dengan hak akses ketat `0600`.
-  - `peer_id` merupakan sidik jari SHA-256 dari kunci publik.
-  - Setiap pesan dan peristiwa room ditandatangani secara digital (*cryptographically signed*).
-  - Enkripsi transport **TLS 1.3** dengan sertifikat *self-signed* dan penyematan sidik jari (*fingerprint pinning* / TOFU).
-- **Penyimpanan Lokal & Retensi 30 Hari**: Basis data lokal SQLite (*pure Go* tanpa CGO melalui `modernc.org/sqlite`) beroperasi dalam mode WAL dengan pemangkasan otomatis riwayat lebih dari 30 hari.
-- **Diagnosa Mandiri (`kerxt doctor`)**: Alat pengecekan interface jaringan, status bind port TCP/UDP, broadcast, serta petunjuk konfigurasi firewall Linux, macOS, dan Windows dalam bahasa yang mudah dipahami.
-- **Antarmuka Ganda (TUI & REPL)**: TUI penuh (Bubble Tea) dengan sidebar interaktif, serta mode REPL baris perintah untuk terminal minimalis atau otomatisasi script.
-- **Biner Mandiri**: Berkas biner tunggal (*single static binary* ~12 MB, di bawah batas PRD 20 MB) tanpa ketergantungan runtime eksternal.
-
----
-
-## Panduan Instalasi
-
-### 1. Instalasi Otomatis (Direkomendasikan)
-
-Kerykeion Terminal dilengkapi dengan **installer otomatis** yang melakukan deteksi sistem, kompilasi produksi, penyalinan biner ke `~/.local/bin`, dan konfigurasi PATH secara otomatis:
+Jalankan script installer di root direktori:
 
 ```bash
-# Clone repositori
 git clone https://github.com/your-org/kerykeion_terminal.git
 cd kerykeion_terminal
-
-# Jalankan installer satu langkah
 ./install.sh
 ```
 
-Atau jika kamu sudah memiliki biner `kerxt`:
+Script ini mendeteksi distro Linux kamu (CachyOS, Fedora, Ubuntu, dll.), mengompilasi biner `kerxt`, menyalinnya ke `~/.local/bin/kerxt`, dan memastikan direktori tersebut sudah masuk ke `$PATH`.
+
+Jika biner `kerxt` sudah ada di sistem, kamu juga bisa menjalankan:
 ```bash
 kerxt install
 ```
 
-Installer otomatis ini akan:
-1. Mendeteksi distro dan arsitektur CPU (CachyOS, Fedora, Ubuntu, macOS, dll.).
-2. Memastikan Go compiler tersedia (memberikan panduan perintah instalasi Go jika belum ada).
-3. Mengompilasi biner produksi teroptimasi (`-ldflags="-s -w"`).
-4. Menyalin biner ke `~/.local/bin/kerxt` dan menyetel izin eksekusi (`chmod +x`).
-5. Memeriksa status `$PATH` dan otomatis menambahkan konfigurasi ke file shell kamu (`~/.bashrc`, `~/.zshrc`, atau `~/.config/fish/config.fish`) bila belum ada.
+### Manual per Distro
 
----
-
-### 2. Panduan Manual per Distro
-
-#### CachyOS / Arch Linux
+**CachyOS / Arch Linux**
 ```bash
 sudo pacman -S go git
-cd /path/to/kerykeion_terminal
-./install.sh
+go build -ldflags="-s -w" -o ~/.local/bin/kerxt ./cmd/kerxt
 ```
 
-#### Fedora / RHEL
+**Fedora**
 ```bash
 sudo dnf install -y golang git
-cd /path/to/kerykeion_terminal
-./install.sh
+go build -ldflags="-s -w" -o ~/.local/bin/kerxt ./cmd/kerxt
 ```
 
----
-
-### 3. Cara Menghapus Instalasi (Uninstall)
-
-Untuk menghapus biner:
+**Kompilasi Silang (Windows & macOS)**
 ```bash
-kerxt uninstall
-```
-
-Untuk menghapus biner sekaligus membersihkan seluruh data riwayat dan cache:
-```bash
-kerxt uninstall --purge
-```
-
----
-
-### 3. Kompilasi Silang untuk Windows dan macOS
-
-```bash
-# Untuk Windows (64-bit)
+# Windows (64-bit)
 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o kerxt.exe ./cmd/kerxt
 
-# Untuk macOS (Apple Silicon arm64)
+# macOS (Apple Silicon arm64)
 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o kerxt-darwin-arm64 ./cmd/kerxt
 ```
 
----
+### Menghapus Instalasi (Uninstall)
 
-## Cara Menjalankan
+```bash
+# Hapus biner saja
+kerxt uninstall
 
-### 1. Membuka Aplikasi (TUI Visual)
-Cukup ketik perintah berikut:
+# Hapus biner beserta database riwayat dan cache
+kerxt uninstall --purge
+```
+
+## Penggunaan
+
+Jalankan antarmuka visual (TUI):
 ```bash
 kerxt
 ```
 
-### 2. Diagnosa Jaringan dan Firewall
-Gunakan perintah ini untuk memeriksa apakah interface jaringan, port 42100/42101, dan broadcast LAN berfungsi normal:
+Pilihan perintah lain:
 ```bash
-kerxt doctor
+kerxt doctor        # Cek interface, port binding, dan saran firewall
+kerxt join ngobs    # Langsung masuk atau buat room tertentu
+kerxt --repl        # Mode baris perintah sederhana tanpa TUI
 ```
-
-### 3. Langsung Masuk ke Room
-Kamu bisa langsung membuka aplikasi dan bergabung ke room tertentu:
-```bash
-kerxt join ngobs
-```
-
-### 4. Mode REPL (Baris Perintah Sederhana)
-Bila ingin antarmuka baris demi baris tanpa rendering TUI penuh:
-```bash
-kerxt --repl
-```
-
----
 
 ## Perintah di Dalam Aplikasi
 
-| Perintah | Fungsi | Contoh |
+| Perintah | Keterangan | Contoh |
 |---|---|---|
-| `/help` | Menampilkan bantuan perintah | `/help` atau `/help join` |
+| `/help` | Menampilkan panduan perintah | `/help` atau `/help join` |
 | `/who` | Menampilkan rekan yang online di LAN | `/who` |
-| `/dm <rekan>` | Membuka percakapan pribadi dengan rekan | `/dm aria` |
-| `/join <room>` | Masuk ke room (buat baru bila belum ada) | `/join ngobs` |
-| `/room new <room>` | Membuat room baru secara eksplisit | `/room new proyek-a` |
-| `/room list` | Melihat daftar room yang diikuti | `/room list` |
-| `/room info <room>` | Melihat informasi detail dan anggota room | `/room info ngobs` |
-| `/room transfer <room> <rekan>` | Mengalihkan peran master room ke rekan lain | `/room transfer ngobs budi` |
-| `/go <target>` | Berpindah fokus percakapan aktif | `/go ngobs` |
-| `/send <path_file>` | Mengirim berkas atau gambar ke percakapan aktif | `/send /home/user/dokumen.pdf` |
-| `/get <no>` | Mengunduh berkas dari pengumuman room | `/get 1` |
+| `/dm <rekan>` | Membuka pesan pribadi ke rekan | `/dm aria` |
+| `/join <room>` | Masuk ke room atau buat baru bila belum ada | `/join ngobs` |
+| `/room new <nama>` | Membuat room baru secara eksplisit | `/room new proyek-a` |
+| `/room list` | Menampilkan daftar room yang diikuti | `/room list` |
+| `/room info <nama>` | Menampilkan detail anggota room | `/room info ngobs` |
+| `/room transfer <nama> <rekan>` | Mengalihkan peran master room ke rekan lain | `/room transfer ngobs budi` |
+| `/go <target>` | Berpindah percakapan aktif | `/go ngobs` |
+| `/send <path>` | Mengirim berkas atau gambar ke percakapan aktif | `/send ~/foto.png` |
+| `/get <no>` | Mengunduh berkas dari daftar room | `/get 1` |
 | `/leave [room]` | Keluar dari room saat ini | `/leave ngobs` |
 | `/disband [room]` | Membubarkan room permanen (khusus master) | `/disband ngobs` |
 | `/name <baru>` | Mengubah nama tampilan kamu di jaringan | `/name Budi` |
 | `/open <no>` | Membuka tautan web di browser default | `/open 1` |
-| `/doctor` | Memeriksa status port, jaringan, dan firewall | `/doctor` |
-| `/add <ip:port>` | Menghubungkan langsung jika broadcast dibatasi AP | `/add 10.10.40.50:42100` |
-| `/quit` | Keluar dari Kerykeion Terminal | `/quit` |
+| `/doctor` | Cek status interface, port, dan firewall | `/doctor` |
+| `/add <ip:port>` | Hubungkan manual bila broadcast diblokir access point | `/add 10.10.40.50:42100` |
+| `/quit` | Keluar dari aplikasi | `/quit` |
 
----
+## Karakteristik & Protokol
 
-## Konfigurasi & Lokasi Data
+- **Room Tanpa Host**: Room tetap aktif selama minimal satu anggota terhubung. Setiap peristiwa room ditandatangani secara digital oleh pembuatnya sehingga riwayat valid dapat diteruskan oleh anggota mana pun.
+- **Resume Transfer File**: Berkas dipecah menjadi potongan 256 KB dengan verifikasi hash SHA-256 dan bitmap di disk. Transfer otomatis melanjutkan bagian yang tersisa saat koneksi WiFi pulih setelah berpindah access point.
+- **Model Media Room**: Gambar diumumkan beserta thumbnail ringan (≤ 8 KB). Anggota lain mengunduh dengan `/get <nomor>`, dan siapa pun yang sudah selesai mengunduh otomatis menjadi sumber tambahan (*multi-source*).
+- **Keamanan & Privasi**: Kunci privat Ed25519 tersimpan dengan izin `0600`. Koneksi antar-laptop dienkripsi TLS 1.3 dengan fingerprint pinning, dan `peer_id` dihitung dari SHA-256 public key.
+- **Penyimpanan Lokal**: Database SQLite berbasis pure Go (`modernc.org/sqlite`) beroperasi dalam mode WAL dengan pemangkasan otomatis data yang berumur lebih dari 30 hari.
 
-Kerykeion Terminal menyimpan data secara lokal sesuai standar OS:
+## Lokasi Data
 
 - **Konfigurasi & Database**:
   - Linux: `~/.config/kerykeion/` (`identity.key`, `config.json`, `history.db`)
   - Windows: `%APPDATA%\kerykeion\`
   - macOS: `~/Library/Application Support/kerykeion/`
-- **Unduhan & Berkas Parsial**:
-  - Linux: `~/.cache/kerykeion/downloads/` dan `~/.cache/kerykeion/downloads/.partial/`
+
+- **Cache & Unduhan**:
+  - Linux: `~/.cache/kerykeion/downloads/`
   - Windows: `%LOCALAPPDATA%\kerykeion\downloads\`
   - macOS: `~/Library/Caches/kerykeion/downloads/`
 
----
+## Testing
 
-## Menjalankan Pengujian Otomatis
-
-Seluruh pengujian unit dan pengujian integrasi *End-to-End* (E2E) dapat dijalankan dengan:
-
+Jalankan seluruh pengujian unit dan integrasi end-to-end:
 ```bash
 go test -v ./...
 ```
-
-Pengujian mencakup:
-1. Kriptografi Ed25519 dan verifikasi tanda tangan digital.
-2. Protokol framing biner dan batas ukuran payload.
-3. Operasi database SQLite, indexing, dan retensi 30 hari.
-4. Normalisasi room dan transisi state master.
-5. Sanitasi nama berkas, deteksi ekstensi berbahaya, dan bitmap resume berkas dari disk.
-6. Komunikasi TLS dua arah antara dua peer simultan (Alice & Bob).
