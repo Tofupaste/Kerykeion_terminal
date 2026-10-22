@@ -35,6 +35,7 @@ type REPL struct {
 	in           io.Reader
 	out          io.Writer
 	running      bool
+	initialRoom  string
 }
 
 func NewREPL(
@@ -47,6 +48,7 @@ func NewREPL(
 	tMgr *transfer.Manager,
 	in io.Reader,
 	out io.Writer,
+	initialRoom string,
 ) *REPL {
 	if in == nil {
 		in = os.Stdin
@@ -55,15 +57,16 @@ func NewREPL(
 		out = os.Stdout
 	}
 	return &REPL{
-		cfg:       cfg,
-		idMgr:     idMgr,
-		store:     store,
-		discovery: disc,
-		messaging: msgSvc,
-		roomMgr:   rMgr,
-		transfer:  tMgr,
-		in:        in,
-		out:       out,
+		cfg:         cfg,
+		idMgr:       idMgr,
+		store:       store,
+		discovery:   disc,
+		messaging:   msgSvc,
+		roomMgr:     rMgr,
+		transfer:    tMgr,
+		in:          in,
+		out:         out,
+		initialRoom: initialRoom,
 	}
 }
 
@@ -90,6 +93,20 @@ func (r *REPL) Prompt() {
 func (r *REPL) Run() {
 	r.running = true
 	r.Printf("Kerykeion Terminal REPL siap. Ketik /help untuk daftar perintah.\n")
+
+	if r.initialRoom != "" {
+		rec, joined, err := r.roomMgr.JoinOrCreateRoom(r.initialRoom, r.cfg.TCPPort)
+		if err == nil && rec != nil {
+			r.activeTarget = rec.Name
+			r.isRoom = true
+			if joined {
+				r.Printf("Bergabung ke room #%s.\n", rec.Name)
+			} else {
+				r.Printf("Room #%s berhasil dibuat sebagai master!\n", rec.Name)
+			}
+		}
+	}
+
 	r.Prompt()
 
 	scanner := bufio.NewScanner(r.in)
@@ -193,23 +210,23 @@ func (r *REPL) executeCommand(raw string) {
 			r.Printf("Gunakan: /join <nama_room>\n")
 			return
 		}
-		roomName := parts[1]
-		rec, joined, err := r.roomMgr.JoinRoom(roomName, r.cfg.TCPPort)
+		roomName := strings.TrimPrefix(parts[1], "#")
+		rec, joined, err := r.roomMgr.JoinOrCreateRoom(roomName, r.cfg.TCPPort)
 		if err != nil {
 			r.Printf("[Galat] %v\n", err)
 			return
 		}
-		if !joined {
-			r.Printf("Room '%s' belum ada di jaringan. Ketik '/room new %s' untuk membuatnya.\n", roomName, roomName)
-			return
-		}
 		r.activeTarget = rec.Name
 		r.isRoom = true
-		r.Printf("Bergabung ke room #%s.\n", rec.Name)
+		if joined {
+			r.Printf("Bergabung ke room #%s.\n", rec.Name)
+		} else {
+			r.Printf("Room #%s berhasil dibuat sebagai master!\n", rec.Name)
+		}
 
 	case "/room":
 		if len(parts) < 2 {
-			r.Printf("Gunakan: /room <new|list|info|transfer>\n")
+			r.Printf("Perintah room:\n  • /room new <nama>           Buat room baru\n  • /room list                 Lihat room yang diikuti\n  • /room info [nama]          Detail dan anggota room\n  • /room transfer <nama> <rekan> Pindahkan peran master\n")
 			return
 		}
 		sub := strings.ToLower(parts[1])

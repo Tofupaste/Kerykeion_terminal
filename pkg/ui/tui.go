@@ -39,6 +39,7 @@ type AppModel struct {
 
 	activeTarget string // room name (e.g. "ngobs") or peerID (e.g. "abc...")
 	isRoom       bool
+	initialRoom  string
 
 	messages   []db.MessageRecord
 	peers      []discovery.PeerInfo
@@ -63,6 +64,11 @@ type MsgRoomEvent struct {
 	Room   string
 	Detail string
 }
+type MsgRoomJoined struct {
+	Room       *db.RoomRecord
+	WasCreated bool
+	Err        error
+}
 
 func NewTUI(
 	cfg *config.Config,
@@ -72,6 +78,7 @@ func NewTUI(
 	msgSvc *messaging.Service,
 	rMgr *room.Manager,
 	tMgr *transfer.Manager,
+	initialRoom string,
 ) *AppModel {
 	ti := textinput.New()
 	ti.Placeholder = "Ketik pesan atau /help untuk bantuan..."
@@ -91,6 +98,7 @@ func NewTUI(
 		transfer:        tMgr,
 		textInput:       ti,
 		viewport:        vp,
+		initialRoom:     initialRoom,
 		fileAnnounceMap: make(map[int]protocol.FileAnnouncePayload),
 		statusText:      "Ketik /help untuk panduan",
 	}
@@ -100,7 +108,20 @@ func NewTUI(
 }
 
 func (m *AppModel) Init() tea.Cmd {
-	return textinput.Blink
+	var cmds []tea.Cmd
+	cmds = append(cmds, textinput.Blink)
+	if m.initialRoom != "" {
+		target := m.initialRoom
+		cmds = append(cmds, func() tea.Msg {
+			rec, joined, err := m.roomMgr.JoinOrCreateRoom(target, m.cfg.TCPPort)
+			return MsgRoomJoined{
+				Room:       rec,
+				WasCreated: !joined,
+				Err:        err,
+			}
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *AppModel) refreshRoomsAndPeers() {
@@ -137,10 +158,14 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			val := strings.TrimSpace(m.textInput.Value())
 			if val != "" {
-				m.handleUserInput(val)
+				cmd := m.handleUserInput(val)
 				m.textInput.SetValue("")
+				m.textInput.Reset()
+				if cmd != nil {
+					cmds = append(cmds, cmd)
+				}
 			}
-			return m, nil
+			return m, tea.Batch(cmds...)
 		}
 
 	case tea.WindowSizeMsg:
@@ -204,6 +229,23 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case MsgRoomEvent:
 		m.addSystemLog(fmt.Sprintf("[%s] %s: %s", msg.Event, msg.Room, msg.Detail))
 		m.refreshRoomsAndPeers()
+
+	case MsgRoomJoined:
+		if msg.Err != nil {
+			m.addSystemLog(fmt.Sprintf("[Galat] %v", msg.Err))
+		} else if msg.Room != nil {
+			m.activeTarget = msg.Room.Name
+			m.isRoom = true
+			m.loadMessagesForTarget()
+			m.refreshRoomsAndPeers()
+			m.statusText = fmt.Sprintf("Room: #%s", msg.Room.Name)
+			if msg.WasCreated {
+				m.addSystemLog(fmt.Sprintf("Room #%s berhasil dibuat sebagai master!", msg.Room.Name))
+			} else {
+				m.addSystemLog(fmt.Sprintf("Berhasil bergabung ke room #%s!", msg.Room.Name))
+			}
+		}
+		m.updateViewportContent()
 	}
 
 	var tiCmd tea.Cmd
@@ -243,15 +285,14 @@ func (m *AppModel) handleTabCompletion() {
 	}
 }
 
-func (m *AppModel) handleUserInput(input string) {
+func (m *AppModel) handleUserInput(input string) tea.Cmd {
 	if strings.HasPrefix(input, "/") {
-		m.executeCommand(input)
-		return
+		return m.executeCommand(input)
 	}
 
 	if m.activeTarget == "" {
 		m.addSystemLog("Belum ada percakapan aktif. Ketik /join <nama_room> atau /dm <nama_rekan>.")
-		return
+		return nil
 	}
 
 	if m.isRoom {
@@ -259,12 +300,13 @@ func (m *AppModel) handleUserInput(input string) {
 	} else {
 		_, _ = m.messaging.SendDM(m.activeTarget, input)
 	}
+	return nil
 }
 
-func (m *AppModel) executeCommand(raw string) {
+func (m *AppModel) executeCommand(raw string) tea.Cmd {
 	parts := strings.Fields(raw)
 	if len(parts) == 0 {
-		return
+		return nil
 	}
 
 	cmd := strings.ToLower(parts[0])
@@ -272,10 +314,11 @@ func (m *AppModel) executeCommand(raw string) {
 	switch cmd {
 	case "/help":
 		if len(parts) > 1 {
-			m.addSystemLog(FormatDetailHelp(parts[1]))
+			m.addSystemLog(FormatDetailHelp(strings.Join(parts[1:], " ")))
 		} else {
 			m.addSystemLog(FormatQuickHelp())
 		}
+		return nil
 
 	case "/who":
 		m.refreshRoomsAndPeers()
@@ -292,11 +335,12 @@ func (m *AppModel) executeCommand(raw string) {
 			sb.WriteString(fmt.Sprintf("- %s (%s) IP %s:%d\n", p.DisplayName, status, p.IP, p.Port))
 		}
 		m.addSystemLog(sb.String())
+		return nil
 
 	case "/dm":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /dm <nama_rekan>")
-			return
+			return nil
 		}
 		target := parts[1]
 		peer, ok := m.discovery.FindPeerByName(target)
@@ -311,60 +355,56 @@ func (m *AppModel) executeCommand(raw string) {
 		}
 		if !ok {
 			m.addSystemLog(fmt.Sprintf("Rekan '%s' tidak ditemukan. Ketik /who untuk melihat daftar.", target))
-			return
+			return nil
 		}
 		m.activeTarget = peer.PeerID
 		m.isRoom = false
 		m.loadMessagesForTarget()
 		m.statusText = fmt.Sprintf("DM dengan %s", peer.DisplayName)
 		m.addSystemLog(fmt.Sprintf("Membuka percakapan pribadi dengan %s", peer.DisplayName))
+		return nil
 
 	case "/join":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /join <nama_room>")
-			return
+			return nil
 		}
 		roomName := parts[1]
-		m.addSystemLog(fmt.Sprintf("Mencari room '%s' di LAN...", roomName))
-		go func() {
-			rec, joined, err := m.roomMgr.JoinRoom(roomName, m.cfg.TCPPort)
-			if err != nil {
-				m.addSystemLog(fmt.Sprintf("[Galat] %v", err))
-				return
+		cleanName := strings.TrimPrefix(strings.ToLower(strings.TrimSpace(roomName)), "#")
+		m.addSystemLog(fmt.Sprintf("Mencari atau membuat room '#%s'...", cleanName))
+		return func() tea.Msg {
+			rec, joined, err := m.roomMgr.JoinOrCreateRoom(cleanName, m.cfg.TCPPort)
+			return MsgRoomJoined{
+				Room:       rec,
+				WasCreated: !joined,
+				Err:        err,
 			}
-			if !joined {
-				m.addSystemLog(fmt.Sprintf("Room '%s' belum ada di jaringan. Ketik '/room new %s' untuk membuatnya.", roomName, roomName))
-				return
-			}
-			m.activeTarget = rec.Name
-			m.isRoom = true
-			m.loadMessagesForTarget()
-			m.statusText = fmt.Sprintf("Room: #%s", rec.Name)
-			m.refreshRoomsAndPeers()
-		}()
+		}
 
 	case "/room":
 		if len(parts) < 2 {
-			m.addSystemLog("Gunakan: /room <new|list|info|transfer>")
-			return
+			m.addSystemLog("Perintah room yang tersedia:\n• /room new <nama> - Buat room baru\n• /room list - Daftar room yang diikuti\n• /room info [nama] - Detail dan anggota room\n• /room transfer <nama> <rekan> - Pindahkan master")
+			return nil
 		}
 		sub := strings.ToLower(parts[1])
 		switch sub {
 		case "new":
 			if len(parts) < 3 {
 				m.addSystemLog("Gunakan: /room new <nama_room>")
-				return
+				return nil
 			}
 			rec, err := m.roomMgr.CreateRoom(parts[2])
 			if err != nil {
 				m.addSystemLog(fmt.Sprintf("[Galat] %v", err))
-				return
+				return nil
 			}
 			m.activeTarget = rec.Name
 			m.isRoom = true
 			m.loadMessagesForTarget()
 			m.refreshRoomsAndPeers()
+			m.statusText = fmt.Sprintf("Room: #%s", rec.Name)
 			m.addSystemLog(fmt.Sprintf("Room #%s berhasil dibuat!", rec.Name))
+			return nil
 
 		case "list":
 			m.refreshRoomsAndPeers()
@@ -378,6 +418,7 @@ func (m *AppModel) executeCommand(raw string) {
 				sb.WriteString(fmt.Sprintf("- #%s [%s]\n", r.Name, role))
 			}
 			m.addSystemLog(sb.String())
+			return nil
 
 		case "info":
 			name := m.activeTarget
@@ -387,7 +428,7 @@ func (m *AppModel) executeCommand(raw string) {
 			rec, err := m.store.GetRoom(name)
 			if err != nil || rec == nil {
 				m.addSystemLog("Room tidak ditemukan.")
-				return
+				return nil
 			}
 			members, _ := m.store.GetRoomMembers(name)
 			var sb strings.Builder
@@ -408,34 +449,36 @@ func (m *AppModel) executeCommand(raw string) {
 		case "transfer":
 			if len(parts) < 4 {
 				m.addSystemLog("Gunakan: /room transfer <nama_room> <rekan>")
-				return
+				return nil
 			}
 			targetPeer, ok := m.discovery.FindPeerByName(parts[3])
 			if !ok {
 				m.addSystemLog(fmt.Sprintf("Rekan '%s' tidak ditemukan.", parts[3]))
-				return
+				return nil
 			}
 			err := m.roomMgr.TransferMaster(parts[2], targetPeer.PeerID)
 			if err != nil {
 				m.addSystemLog(fmt.Sprintf("[Galat] %v", err))
-				return
+				return nil
 			}
 			m.addSystemLog(fmt.Sprintf("Kepemilikan room #%s diserahkan ke %s", parts[2], targetPeer.DisplayName))
+			return nil
 		}
+		return nil
 
 	case "/go":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /go <nama_room_atau_rekan>")
-			return
+			return nil
 		}
-		target := parts[1]
+		target := strings.TrimPrefix(parts[1], "#")
 		for _, r := range m.rooms {
 			if r.Name == target {
 				m.activeTarget = r.Name
 				m.isRoom = true
 				m.loadMessagesForTarget()
 				m.statusText = fmt.Sprintf("Room: #%s", r.Name)
-				return
+				return nil
 			}
 		}
 		if p, ok := m.discovery.FindPeerByName(target); ok {
@@ -443,19 +486,20 @@ func (m *AppModel) executeCommand(raw string) {
 			m.isRoom = false
 			m.loadMessagesForTarget()
 			m.statusText = fmt.Sprintf("DM dengan %s", p.DisplayName)
-			return
+			return nil
 		}
 		m.addSystemLog(fmt.Sprintf("Percakapan '%s' tidak ditemukan.", target))
+		return nil
 
 	case "/send":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /send <path_file>")
-			return
+			return nil
 		}
 		filePath := parts[1]
 		if m.activeTarget == "" {
 			m.addSystemLog("Pilih percakapan aktif terlebih dahulu.")
-			return
+			return nil
 		}
 		go func() {
 			if m.isRoom {
@@ -470,16 +514,17 @@ func (m *AppModel) executeCommand(raw string) {
 				}
 			}
 		}()
+		return nil
 
 	case "/get":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /get <nomor_pengumuman>")
-			return
+			return nil
 		}
 		num, err := strconv.Atoi(parts[1])
 		if err != nil {
 			m.addSystemLog("Nomor pengumuman tidak valid.")
-			return
+			return nil
 		}
 		go func() {
 			err := m.transfer.PullAnnouncedFile(num)
@@ -487,6 +532,7 @@ func (m *AppModel) executeCommand(raw string) {
 				m.addSystemLog(fmt.Sprintf("[Galat Get] %v", err))
 			}
 		}()
+		return nil
 
 	case "/leave":
 		target := m.activeTarget
@@ -496,12 +542,13 @@ func (m *AppModel) executeCommand(raw string) {
 		err := m.roomMgr.LeaveRoom(target)
 		if err != nil {
 			m.addSystemLog(fmt.Sprintf("[Galat Leave] %v", err))
-			return
+			return nil
 		}
 		m.activeTarget = ""
 		m.messages = nil
 		m.updateViewportContent()
 		m.refreshRoomsAndPeers()
+		return nil
 
 	case "/disband":
 		target := m.activeTarget
@@ -511,17 +558,18 @@ func (m *AppModel) executeCommand(raw string) {
 		err := m.roomMgr.DisbandRoom(target)
 		if err != nil {
 			m.addSystemLog(fmt.Sprintf("[Galat Disband] %v", err))
-			return
+			return nil
 		}
 		m.activeTarget = ""
 		m.messages = nil
 		m.updateViewportContent()
 		m.refreshRoomsAndPeers()
+		return nil
 
 	case "/name":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /name <nama_baru>")
-			return
+			return nil
 		}
 		newName := parts[1]
 		m.idMgr.SetDisplayName(newName)
@@ -529,33 +577,36 @@ func (m *AppModel) executeCommand(raw string) {
 		_ = m.cfg.Save()
 		_ = m.store.SaveIdentity(m.idMgr.PeerID(), newName)
 		m.addSystemLog(fmt.Sprintf("Nama tampilan diubah menjadi: %s", newName))
+		return nil
 
 	case "/open":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /open <nomor_link>")
-			return
+			return nil
 		}
 		num, err := strconv.Atoi(parts[1])
 		if err != nil {
 			m.addSystemLog("Nomor link tidak valid.")
-			return
+			return nil
 		}
 		link, ok := m.messaging.GetLink(num)
 		if !ok {
 			m.addSystemLog(fmt.Sprintf("Link #%d tidak ditemukan.", num))
-			return
+			return nil
 		}
 		openBrowser(link)
 		m.addSystemLog(fmt.Sprintf("Membuka link: %s", link))
+		return nil
 
 	case "/doctor":
 		report := doctor.RunDiagnostics(m.cfg, m.discovery)
 		m.addSystemLog(doctor.FormatReport(report))
+		return nil
 
 	case "/add":
 		if len(parts) < 2 {
 			m.addSystemLog("Gunakan: /add <ip:port>")
-			return
+			return nil
 		}
 		_, err := m.discovery.AddManualPeer(parts[1])
 		if err != nil {
@@ -563,10 +614,10 @@ func (m *AppModel) executeCommand(raw string) {
 		} else {
 			m.addSystemLog(fmt.Sprintf("Mengirim broadcast langsung ke %s", parts[1]))
 		}
+		return nil
 
 	case "/quit":
-		// handled by tea.Quit
-		return
+		return tea.Quit
 
 	default:
 		sugg := SuggestCommand(cmd)
@@ -575,6 +626,7 @@ func (m *AppModel) executeCommand(raw string) {
 		} else {
 			m.addSystemLog(fmt.Sprintf("Perintah '%s' tidak dikenal. Ketik /help untuk panduan.", cmd))
 		}
+		return nil
 	}
 }
 

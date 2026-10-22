@@ -251,6 +251,9 @@ func (d *Discovery) broadcastAnnounce(tcpPort int) {
 }
 
 func (d *Discovery) sendAnnounceTo(addr *net.UDPAddr, tcpPort int) {
+	if d.conn == nil {
+		return
+	}
 	pkt := protocol.AnnouncePacket{
 		V:         1,
 		Type:      "ANNOUNCE",
@@ -432,6 +435,9 @@ func (d *Discovery) handleAnnounce(pkt protocol.AnnouncePacket, remoteAddr *net.
 }
 
 func (d *Discovery) BroadcastRoomQuery(roomName string, myTCPPort int) {
+	if d.conn == nil {
+		return
+	}
 	pkt := protocol.RoomQueryPacket{
 		V:        1,
 		Type:     "ROOM_QUERY",
@@ -464,6 +470,9 @@ func (d *Discovery) BroadcastRoomQuery(roomName string, myTCPPort int) {
 }
 
 func (d *Discovery) SendRoomHere(toAddr *net.UDPAddr, roomName string, gen int64, masterID string, myTCPPort int) {
+	if d.conn == nil {
+		return
+	}
 	pkt := protocol.RoomHerePacket{
 		V:        1,
 		Type:     "ROOM_HERE",

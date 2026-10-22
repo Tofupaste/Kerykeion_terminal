@@ -37,8 +37,16 @@ func DefaultConfig() (*Config, error) {
 	partialDir := filepath.Join(downloadsDir, ".partial")
 	cacheDir := filepath.Join(dataDir, "cache")
 
+	defaultName := os.Getenv("USER")
+	if defaultName == "" {
+		defaultName = os.Getenv("USERNAME")
+	}
+	if defaultName == "" {
+		defaultName = "anon"
+	}
+
 	return &Config{
-		DisplayName:          "",
+		DisplayName:          defaultName,
 		TCPPort:              42100,
 		UDPPort:              42101,
 		ConfigDir:            configDir,

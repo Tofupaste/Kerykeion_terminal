@@ -65,6 +65,7 @@ func (m *Manager) Stop() {
 
 func NormalizeName(name string) (string, error) {
 	norm := strings.ToLower(strings.TrimSpace(name))
+	norm = strings.TrimPrefix(norm, "#")
 	if !roomNameRegex.MatchString(norm) {
 		return "", errors.New("nama room harus 2-32 karakter, hanya huruf kecil, angka, '-' atau '_'")
 	}
@@ -128,13 +129,13 @@ func (m *Manager) JoinRoom(name string, myTCPPort int) (*db.RoomRecord, bool, er
 	}()
 
 	var foundResp *protocol.RoomHerePacket
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt < 2; attempt++ {
 		m.discovery.BroadcastRoomQuery(norm, myTCPPort)
 		select {
 		case resp := <-hereCh:
 			foundResp = &resp
 			break
-		case <-time.After(3 * time.Second):
+		case <-time.After(800 * time.Millisecond):
 		}
 		if foundResp != nil {
 			break
@@ -170,6 +171,34 @@ func (m *Manager) JoinRoom(name string, myTCPPort int) (*db.RoomRecord, bool, er
 	}
 
 	return &rec, true, nil
+}
+
+// JoinOrCreateRoom tries to join an existing room on the LAN. If no peer hosts it,
+// it automatically creates the room as master. The boolean return is true if joined existing, false if newly created.
+func (m *Manager) JoinOrCreateRoom(name string, myTCPPort int) (*db.RoomRecord, bool, error) {
+	norm, err := NormalizeName(name)
+	if err != nil {
+		return nil, false, err
+	}
+
+	// 1. Check if already active locally
+	existing, err := m.store.GetRoom(norm)
+	if err == nil && existing != nil && existing.State == "active" {
+		return existing, true, nil
+	}
+
+	// 2. Query LAN
+	rec, joined, err := m.JoinRoom(norm, myTCPPort)
+	if err == nil && joined && rec != nil {
+		return rec, true, nil
+	}
+
+	// 3. Not found on LAN: automatically create as master
+	newRec, err := m.CreateRoom(norm)
+	if err != nil {
+		return nil, false, err
+	}
+	return newRec, false, nil
 }
 
 func (m *Manager) broadcastJoinEvent(roomName string, gen int64) {

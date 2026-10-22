@@ -11,6 +11,8 @@ func TestRoomNameNormalization(t *testing.T) {
 		shouldError bool
 	}{
 		{"Ngobs", "ngobs", false},
+		{"#ngobs", "ngobs", false},
+		{"#proyek_1", "proyek_1", false},
 		{"ngobs-kantor", "ngobs-kantor", false},
 		{"room_123", "room_123", false},
 		{"a", "", true},                                   // too short (< 2)

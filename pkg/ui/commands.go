@@ -41,19 +41,51 @@ var CommandCatalog = map[string]CommandHelp{
 	},
 	"join": {
 		Command:     "/join",
-		Summary:     "Masuk ke room percakapan",
+		Summary:     "Masuk ke room atau otomatis buat baru",
 		Usage:       "/join <nama_room>",
-		Description: "Mencari room di jaringan LAN. Bila room sudah ada, otomatis bergabung. Bila belum ada, tawarkan untuk membuatnya.",
+		Description: "Mencari room di jaringan LAN. Bila room sudah ada, otomatis bergabung. Bila belum ada, otomatis membuat room baru sebagai master.",
 		Example:     "/join ngobs",
-		CommonError: "Nama room hanya boleh huruf kecil, angka, '-' atau '_'.",
+		CommonError: "Nama room 2-32 karakter (huruf kecil, angka, '-' atau '_'). Awalan '#' otomatis dibersihkan.",
 	},
 	"room": {
 		Command:     "/room",
 		Summary:     "Manajemen room (new, list, info, transfer)",
 		Usage:       "/room <new|list|info|transfer> [argumen]",
-		Description: "Perintah grup untuk membuat room (/room new <nama>), melihat daftar (/room list), info detail (/room info <nama>), atau transfer master (/room transfer <nama> <rekan>).",
+		Description: "Perintah grup untuk mengelola room. Gunakan /room new <nama> untuk membuat room baru, /room list untuk daftar room, /room info untuk anggota, atau /room transfer untuk memindahkan master.",
 		Example:     "/room new proyek-a",
-		CommonError: "Sub-perintah tidak valid. Gunakan /room list atau /room new <nama>.",
+		CommonError: "Sub-perintah: new, list, info, transfer.",
+	},
+	"room new": {
+		Command:     "/room new",
+		Summary:     "Buat room baru secara eksplisit",
+		Usage:       "/room new <nama_room>",
+		Description: "Membuat room baru di jaringan LAN dan menetapkan kamu sebagai master room.",
+		Example:     "/room new proyek-a",
+		CommonError: "Nama room 2-32 karakter, huruf kecil, angka, '-' atau '_'.",
+	},
+	"room list": {
+		Command:     "/room list",
+		Summary:     "Daftar room yang kamu ikuti",
+		Usage:       "/room list",
+		Description: "Menampilkan daftar seluruh room yang saat ini kamu ikuti beserta peran kamu (master atau guest).",
+		Example:     "/room list",
+		CommonError: "Tidak ada.",
+	},
+	"room info": {
+		Command:     "/room info",
+		Summary:     "Informasi detail room dan anggota",
+		Usage:       "/room info [nama_room]",
+		Description: "Melihat siapa pembuat (master), tanggal pembuatan, dan seluruh anggota yang terhubung ke room.",
+		Example:     "/room info ngobs",
+		CommonError: "Jika nama room tidak diberikan, akan menampilkan info room aktif saat ini.",
+	},
+	"room transfer": {
+		Command:     "/room transfer",
+		Summary:     "Pindahkan hak master ke rekan lain",
+		Usage:       "/room transfer <nama_room> <nama_rekan>",
+		Description: "Menyerahkan peran master room kepada rekan lain di jaringan.",
+		Example:     "/room transfer ngobs budi",
+		CommonError: "Hanya master room yang berhak memindahkan kepemilikan room.",
 	},
 	"go": {
 		Command:     "/go",
@@ -205,18 +237,46 @@ func min(vals ...int) int {
 
 func FormatQuickHelp() string {
 	var sb strings.Builder
-	sb.WriteString("=== PANDUAN PERINTAH KERYKEION TERMINAL ===\n")
-	sb.WriteString("Perintah Utama:\n")
-	sb.WriteString("  /who                Lihat siapa saja rekan yang sedang online\n")
-	sb.WriteString("  /join <room>        Masuk ke room (contoh: /join ngobs)\n")
-	sb.WriteString("  /dm <nama>          Kirim pesan pribadi (contoh: /dm aria)\n")
-	sb.WriteString("  /send <file>        Kirim file/foto/video ke percakapan aktif\n")
-	sb.WriteString("  /get <no>           Unduh file dari pengumuman room (contoh: /get 1)\n")
-	sb.WriteString("  /open <no>          Buka link web di browser (contoh: /open 1)\n")
-	sb.WriteString("  /doctor             Periksa koneksi jaringan dan firewall\n")
-	sb.WriteString("  /help <perintah>    Penjelasan lengkap perintah (contoh: /help join)\n")
-	sb.WriteString("  /quit               Keluar dari aplikasi\n\n")
-	sb.WriteString("Tips: Ketik teks biasa lalu tekan Enter untuk mengirim pesan ke percakapan aktif.\n")
+	sb.WriteString("=== PANDUAN LENGKAP PERINTAH KERYKEION TERMINAL ===\n\n")
+
+	sb.WriteString("Obrolan & Room:\n")
+	sb.WriteString("  /join <nama_room>               Masuk ke room atau otomatis buat baru\n")
+	sb.WriteString("  /dm <nama_rekan>                Kirim pesan pribadi (Direct Message)\n")
+	sb.WriteString("  /go <nama_room_atau_rekan>      Pindah fokus ke percakapan lain\n")
+	sb.WriteString("  /room new <nama_room>           Buat room baru secara eksplisit\n")
+	sb.WriteString("  /room list                      Lihat daftar seluruh room yang kamu ikuti\n")
+	sb.WriteString("  /room info [nama_room]          Lihat informasi master dan anggota room\n")
+	sb.WriteString("  /room transfer <room> <rekan>   Pindahkan kepemilikan master ke rekan lain\n")
+	sb.WriteString("  /leave [nama_room]              Keluar dari room (hanya diri sendiri)\n")
+	sb.WriteString("  /disband [nama_room]            Bubarkan room permanen (khusus master)\n\n")
+
+	sb.WriteString("Kirim Berkas & Media:\n")
+	sb.WriteString("  /send <path_file>               Kirim berkas/foto/video (resume otomatis)\n")
+	sb.WriteString("  /get <nomor>                    Unduh berkas dari pengumuman room\n")
+	sb.WriteString("  /open <nomor>                   Buka tautan web yang diterima di browser\n")
+	sb.WriteString("  /export                         Simpan riwayat percakapan ke file teks\n\n")
+
+	sb.WriteString("Jaringan & Status:\n")
+	sb.WriteString("  /who                            Lihat daftar rekan yang sedang online di LAN\n")
+	sb.WriteString("  /doctor                         Tes interface, port 42100/42101, & firewall\n")
+	sb.WriteString("  /add <ip:port>                  Hubungkan langsung jika broadcast dibatasi AP\n\n")
+
+	sb.WriteString("Pengaturan & Bantuan:\n")
+	sb.WriteString("  /name <nama_baru>               Ubah nama tampilan kamu di jaringan\n")
+	sb.WriteString("  /help [perintah]                Penjelasan detail perintah (contoh: /help send)\n")
+	sb.WriteString("  /quit                           Keluar dari aplikasi\n\n")
+
+	sb.WriteString("Perintah Terminal (CLI):\n")
+	sb.WriteString("  kerxt                           Buka antarmuka visual (TUI)\n")
+	sb.WriteString("  kerxt join <nama_room>          Langsung masuk atau buat room tertentu\n")
+	sb.WriteString("  kerxt doctor                    Jalankan diagnosa jaringan dari terminal\n")
+	sb.WriteString("  kerxt install                   Pasang otomatis ke ~/.local/bin dan atur PATH\n")
+	sb.WriteString("  kerxt uninstall [--purge]       Hapus biner (dan data riwayat)\n")
+	sb.WriteString("  kerxt --repl                    Jalankan mode baris perintah tanpa TUI\n\n")
+
+	sb.WriteString("Tips:\n")
+	sb.WriteString("• Ketik teks biasa lalu Enter untuk mengirim pesan ke percakapan aktif.\n")
+	sb.WriteString("• Tekan tombol Tab untuk melengkapi perintah atau nama room secara otomatis.\n")
 	return sb.String()
 }
 

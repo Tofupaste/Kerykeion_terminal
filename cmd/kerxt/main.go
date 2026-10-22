@@ -7,7 +7,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"kerykeion/pkg/config"
@@ -98,8 +97,14 @@ func main() {
 			return
 
 		case "join":
-			if len(args) > 1 {
-				initialRoom = args[1]
+			for _, a := range args[1:] {
+				if a == "--repl" || a == "-repl" {
+					forceREPL = true
+				} else if a == "--debug" || a == "-debug" {
+					debugMode = true
+				} else if !strings.HasPrefix(a, "-") && initialRoom == "" {
+					initialRoom = a
+				}
 			}
 		}
 	}
@@ -306,18 +311,11 @@ func main() {
 	}
 	defer disc.Stop()
 
-	if initialRoom != "" {
-		go func() {
-			time.Sleep(500 * time.Millisecond)
-			_, _, _ = roomMgr.JoinRoom(initialRoom, cfg.TCPPort)
-		}()
-	}
-
 	if forceREPL {
-		replApp = ui.NewREPL(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr, os.Stdin, os.Stdout)
+		replApp = ui.NewREPL(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr, os.Stdin, os.Stdout, initialRoom)
 		replApp.Run()
 	} else {
-		appModel := ui.NewTUI(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr)
+		appModel := ui.NewTUI(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr, initialRoom)
 		tuiProgram = tea.NewProgram(appModel, tea.WithAltScreen())
 		if _, err := tuiProgram.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "Galat menjalankan TUI: %v\n", err)
