@@ -188,6 +188,12 @@ The IDs above are examples; copy an actual selector from `/who`. Full IDs are ac
 | `/disband [room]` | Close a room as its master |
 | `/name <new_name>` | Change the display name without replacing the identity |
 | `/open <number>` | Open a registered HTTP or HTTPS link in the default browser |
+| `/ai <prompt>` | Query active AI model (office server Qwen 3 14B or local CLI adapter) |
+| `/ai model [name]` | Check active model, list available models, or switch model |
+| `/ai ask @<peer> [model] <prompt>` | Delegate inference to a peer's local AI model / subscription via TLS (Zero Key Leakage) |
+| `/ai handoff @<peer>` | Estafet current AI conversation session + Git Diff to a peer |
+| `/ai share` | Share AI session history into the active room or direct message |
+| `/ai clear` | Clear AI context history for the active conversation |
 | `/doctor` | Print interface, port, and troubleshooting information |
 | `/add <ip:port>` | Send a discovery announcement to a specified host |
 | `/lang <id|en>` | Set and save the TUI language |
@@ -209,14 +215,19 @@ flowchart TB
     Protocol["pkg/protocol: frames and payloads"]
     Store["pkg/db: SQLite history and metadata"]
     Identity["pkg/identity: persistent Ed25519 keys"]
+    AI["pkg/ai: hybrid models, P2P inference delegation, handoff"]
     Peers["Other LAN peers"]
 
     Main --> UI
     Main --> Discovery
     Main --> Transport
+    Main --> AI
     UI --> Messaging
     UI --> Room
     UI --> Transfer
+    UI --> AI
+    AI --> Transport
+    AI --> Store
     Messaging --> Store
     Room --> Store
     Transfer --> Store
@@ -242,6 +253,7 @@ flowchart TB
 | [`messaging`](pkg/messaging) | Signed messages, deduplication, acknowledgments, retries, link registration |
 | [`room`](pkg/room) | Room creation, joining/leaving, master changes, tombstones, history exchange |
 | [`transfer`](pkg/transfer) | Hashing, file offers, chunk storage, partial-file metadata, thumbnails |
+| [`ai`](pkg/ai) | Hybrid models (Qwen 3 14B, Antigravity, Claude, Codex), P2P inference delegation, session handoff with Git diff |
 | [`db`](pkg/db) | SQLite schema and persistence operations |
 | [`ui`](pkg/ui) | Input routing, panes, language selection, message and progress rendering |
 | [`doctor`](pkg/doctor) | Local interface and socket diagnostics |
@@ -335,6 +347,92 @@ A room upload is cached by SHA-256 and announced to current members with `FILE_A
 `/get <number>` opens a separate file connection and sends `FILE_REQUEST`. The owner checks room membership and the cached file's hash, then sends `FILE_OFFER` back over that connection. The receiver's bitmap selects missing chunks. The receiver reports completion only after hash verification, a successful rename into the downloads folder, and an updated transfer record.
 
 If the owner cannot serve the request, the requester sends `FILE_WHO_HAS` to other recorded room members. A member with a cached copy replies with `FILE_HAVE` and can serve the same request. Completed downloads remain available as cache sources for seven days. This fallback selects one source at a time; it does not download chunks from several peers simultaneously. A missing source or failed save is reported as an error.
+
+### AI collaboration and model sharing
+
+Kerykeion Terminal includes peer-to-peer AI collaboration for development teams. Instead of risking API key leakage or losing context when handing off work, peers can borrow inference quota from each other's local models and subscriptions, estafet ongoing AI sessions with uncommitted git changes, or collaborate with AI together in shared rooms.
+
+#### 1. P2P model inference delegation (`/ai ask @peer [model] <prompt>`)
+
+Peers on the network can leverage subscriptions (such as Claude Code, Codex, or Antigravity CLI) or private office models hosted on another developer's machine without the provider ever exposing their API credentials.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Client as Client Peer (A)
+    participant TransportA as Transport A
+    participant TransportB as Transport B
+    participant Worker as AI Worker Peer (B)
+    participant Model as Local LLM / Subscription CLI
+
+    Client->>TransportA: /ai ask @B [model] <prompt>
+    TransportA->>TransportB: TypeAIQueryReq (0x40) over TLS
+    TransportB->>Worker: Dispatch query (HandleIncomingQuery)
+    Worker->>Model: Execute local inference (Zero Key Leakage)
+    Note over Worker,Model: Runs local CLI (`agy -p`, `claude -p`, `codex`) or HTTP API
+    Model-->>Worker: Generated code / solution
+    Worker->>TransportB: TypeAIQueryRes (0x41) over TLS
+    TransportB->>TransportA: Return response
+    TransportA-->>Client: Display "[model via @B]: answer"
+```
+
+#### 2. Session handoff with Git diff (`/ai handoff @peer`)
+
+When switching tasks or pairing, a developer can pass their entire AI conversation context along with their working directory's unstaged and staged code modifications directly to a teammate.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant DevA as Developer A
+    participant SvcA as AI Service A
+    participant Git as Local Git Repo
+    participant TransA as Transport A
+    participant TransB as Transport B
+    participant SvcB as AI Service B
+    participant DevB as Developer B
+
+    DevA->>SvcA: /ai handoff @B
+    SvcA->>Git: Capture staged & unstaged git diff
+    Git-->>SvcA: Diff snapshot
+    SvcA->>TransA: Package AISessionSyncPayload (history + git diff)
+    TransA->>TransB: TypeAISessionSync (0x42) over TLS
+    TransB->>SvcB: HandleIncomingSync
+    SvcB->>SvcB: Save history & import diff into session
+    SvcB-->>DevB: Notify: "[AI Handoff] Received session from @A (N messages) with Git Diff"
+    DevB->>SvcB: Continue seamlessly: "/ai Implement the payment verification logic..."
+```
+
+#### 3. Shared collaborative AI room (`@ai <prompt>`)
+
+In any joined room, members can summon AI to provide answers that are immediately visible and synchronized for all participants.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Alice as Alice
+    participant Room as Room #dev
+    participant AI as Local AI Service
+    participant OfficeLLM as Office AI (Qwen 3 14B)
+    participant Bob as Bob
+
+    Alice->>Room: Chat: "@ai tolong buatkan routing handler untuk login"
+    Room->>AI: Detect @ai mention
+    AI->>OfficeLLM: Query Qwen 3 14B (or active model)
+    OfficeLLM-->>AI: Generated code response
+    AI->>Room: Broadcast response into #dev
+    Room-->>Alice: Render response in conversation
+    Room-->>Bob: Render response in conversation (shared context)
+```
+
+#### Hybrid AI engines & subscription CLI adapters
+
+Kerykeion provides out-of-the-box support for both high-capacity office servers and local personal subscriptions:
+
+* **Office AI Inference Server**: Connects to `http://10.10.5.141:8080/v1` with default model `qwen3:14b` (14B parameter reasoning model) alongside `git-agent:latest`, `gemma4:12b`, `qwen3:8b`, and `qwen3-jarvis:14b`.
+* **Antigravity CLI (`agy`)**: Automatically detected in PATH or `~/.local/bin/agy`. Supports `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, and `gpt-oss-120b-medium`.
+* **Claude Code CLI (`claude`)**: Automatically detected in PATH or `~/.local/bin/claude`. Executes non-interactive prompt queries via `claude -p`.
+* **OpenAI Codex CLI (`codex`)**: Executes non-interactive requests via `codex exec`.
+* **Zero API Key Leakage**: API credentials remain completely local to the machine providing the inference. Peers only exchange prompts and code outputs over authenticated TLS frames.
 
 ### UI events
 

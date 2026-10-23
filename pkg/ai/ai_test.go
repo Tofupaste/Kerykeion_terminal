@@ -46,8 +46,19 @@ func TestAIServiceMock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListModels failed: %v", err)
 	}
-	if len(models) != 2 || models[0] != "qwen3:8b" {
-		t.Fatalf("Unexpected models: %v", models)
+	// Pastikan minimal model dari mock HTTP server ada
+	hasQwen := false
+	hasGitAgent := false
+	for _, m := range models {
+		if m == "qwen3:8b" {
+			hasQwen = true
+		}
+		if m == "git-agent:latest" {
+			hasGitAgent = true
+		}
+	}
+	if !hasQwen || !hasGitAgent {
+		t.Fatalf("Expected mock models to be present, got: %v", models)
 	}
 
 	ans, err := svc.Ask("test-room", "Halo")
@@ -60,6 +71,15 @@ func TestAIServiceMock(t *testing.T) {
 
 	if svc.HistoryCount("test-room") != 2 {
 		t.Fatalf("Expected history count 2, got %d", svc.HistoryCount("test-room"))
+	}
+
+	// Test AskModel explicitly
+	ansModel, err := svc.AskModel("test-room", "Pertanyaan lanjutan", "qwen3:8b")
+	if err != nil {
+		t.Fatalf("AskModel failed: %v", err)
+	}
+	if ansModel != "[qwen3:8b]: Jawaban simulasi AI" {
+		t.Fatalf("Unexpected AskModel answer: %s", ansModel)
 	}
 
 	// Test Export & Import
@@ -76,8 +96,8 @@ func TestAIServiceMock(t *testing.T) {
 	if err := svc.ImportHistory("test-room", data); err != nil {
 		t.Fatalf("ImportHistory failed: %v", err)
 	}
-	if svc.HistoryCount("test-room") != 2 {
-		t.Fatalf("Expected history count 2 after import")
+	if svc.HistoryCount("test-room") != 4 {
+		t.Fatalf("Expected history count 4 after import, got %d", svc.HistoryCount("test-room"))
 	}
 
 	// Test Handoff Payload creation
@@ -95,16 +115,17 @@ func TestAIServiceMock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HandleIncomingSync failed: %v", err)
 	}
-	if count != 2 || receivedSync.FromPeerID != "peer-alice" {
+	if count != 4 || receivedSync.FromPeerID != "peer-alice" {
 		t.Fatalf("Unexpected sync result: count=%d, sync=%+v", count, receivedSync)
 	}
 
-	// Test Incoming Query & Res
+	// Test Incoming Query & Res with TargetModel
 	qReq := protocol.AIQueryReqPayload{
-		V:          1,
-		ReqID:      "q-123",
-		FromPeerID: "peer-bob",
-		Prompt:     "Test query",
+		V:           1,
+		ReqID:       "q-123",
+		FromPeerID:  "peer-bob",
+		TargetModel: "qwen3:8b",
+		Prompt:      "Test query",
 	}
 	qBytes, _ := json.Marshal(qReq)
 	resBytes, err := svc.HandleIncomingQuery(qBytes)
@@ -121,5 +142,25 @@ func TestAIServiceMock(t *testing.T) {
 		}
 	default:
 		t.Fatalf("Expected response in channel, got none")
+	}
+}
+
+func TestModelClassification(t *testing.T) {
+	svc := &Service{}
+
+	if !svc.isAgyModel("claude-sonnet-4-6") {
+		t.Errorf("Expected claude-sonnet-4-6 to be classified as agy model")
+	}
+	if !svc.isAgyModel("gemini-3.8-flash-high") {
+		t.Errorf("Expected gemini-3.8-flash-high to be classified as agy model")
+	}
+	if !svc.isClaudeCodeModel("claude") || !svc.isClaudeCodeModel("claude-code") {
+		t.Errorf("Expected claude/claude-code to be classified as Claude Code CLI")
+	}
+	if !svc.isCodexModel("codex") {
+		t.Errorf("Expected codex to be classified as Codex CLI")
+	}
+	if svc.isAgyModel("qwen3:14b") || svc.isClaudeCodeModel("qwen3:14b") || svc.isCodexModel("qwen3:14b") {
+		t.Errorf("qwen3:14b should be handled by standard HTTP endpoint")
 	}
 }

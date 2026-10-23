@@ -354,7 +354,7 @@ func (m *AppModel) commandAI(parts []string) tea.Cmd {
 		return nil
 	case "ask":
 		if len(parts) < 4 || !strings.HasPrefix(parts[2], "@") {
-			m.addSystemLog(m.tr("Gunakan: /ai ask @<nama_rekan> <pertanyaan>"))
+			m.addSystemLog(m.tr("Gunakan: /ai ask @<nama_rekan> [model] <pertanyaan>"))
 			return nil
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
@@ -362,18 +362,31 @@ func (m *AppModel) commandAI(parts []string) tea.Cmd {
 		if !ok {
 			return nil
 		}
-		prompt := strings.Join(parts[3:], " ")
+
+		targetModel := ""
+		promptStart := 3
+		candidateModel := strings.ToLower(parts[3])
+		if len(parts) >= 5 && (strings.Contains(candidateModel, "claude") || strings.Contains(candidateModel, "qwen") || strings.Contains(candidateModel, "gemini") || strings.Contains(candidateModel, "codex") || strings.Contains(candidateModel, "gpt")) {
+			targetModel = parts[3]
+			promptStart = 4
+		}
+		prompt := strings.Join(parts[promptStart:], " ")
 		reqID := uuid.NewString()
 
-		m.addSystemLog(m.tr("Meminta inferensi model dari @%s: \"%s\"...", peer.DisplayName, prompt))
+		if targetModel != "" {
+			m.addSystemLog(m.tr("Meminta inferensi model [%s] dari @%s: \"%s\"...", targetModel, peer.DisplayName, prompt))
+		} else {
+			m.addSystemLog(m.tr("Meminta inferensi model dari @%s: \"%s\"...", peer.DisplayName, prompt))
+		}
 
 		return func() tea.Msg {
 			reqPayload := protocol.AIQueryReqPayload{
-				V:          1,
-				ReqID:      reqID,
-				FromPeerID: m.idMgr.PeerID(),
-				Prompt:     prompt,
-				TS:         time.Now().Unix(),
+				V:           1,
+				ReqID:       reqID,
+				FromPeerID:  m.idMgr.PeerID(),
+				TargetModel: targetModel,
+				Prompt:      prompt,
+				TS:          time.Now().Unix(),
 			}
 			reqBytes, err := json.Marshal(reqPayload)
 			if err != nil {

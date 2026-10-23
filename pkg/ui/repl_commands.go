@@ -249,7 +249,7 @@ func (r *REPL) commandAI(parts []string) {
 		return
 	}
 	if len(parts) < 2 {
-		r.Printf("Penggunaan /ai:\n  /ai <pertanyaan>            - Tanya model AI kantor\n  /ai model                   - Cek model aktif & daftar model server\n  /ai model <nama>            - Ganti model AI\n  /ai handoff <nama_rekan>    - Estafet sesi AI + Git Diff ke rekan\n  /ai ask @<rekan> <tanya>    - Pinjam/delegasi inferensi ke model rekan\n  /ai share                   - Bagikan riwayat sesi ke percakapan\n  /ai clear                   - Bersihkan riwayat percakapan sesi aktif\n")
+		r.Printf("Penggunaan /ai:\n  /ai <pertanyaan>                    - Tanya model AI kantor\n  /ai model                           - Cek model aktif & daftar model server\n  /ai model <nama>                    - Ganti model AI\n  /ai handoff <nama_rekan>            - Estafet sesi AI + Git Diff ke rekan\n  /ai ask @<rekan> [model] <tanya>    - Pinjam/delegasi inferensi ke model rekan\n  /ai share                           - Bagikan riwayat sesi ke percakapan\n  /ai clear                           - Bersihkan riwayat percakapan sesi aktif\n")
 		return
 	}
 
@@ -345,7 +345,7 @@ func (r *REPL) commandAI(parts []string) {
 		}
 	case "ask":
 		if len(parts) < 4 || !strings.HasPrefix(parts[2], "@") {
-			r.Printf("Gunakan: /ai ask @<nama_rekan> <pertanyaan>\n")
+			r.Printf("Gunakan: /ai ask @<nama_rekan> [model] <pertanyaan>\n")
 			return
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
@@ -353,17 +353,30 @@ func (r *REPL) commandAI(parts []string) {
 		if !ok {
 			return
 		}
-		prompt := strings.Join(parts[3:], " ")
+
+		targetModel := ""
+		promptStart := 3
+		candidateModel := strings.ToLower(parts[3])
+		if len(parts) >= 5 && (strings.Contains(candidateModel, "claude") || strings.Contains(candidateModel, "qwen") || strings.Contains(candidateModel, "gemini") || strings.Contains(candidateModel, "codex") || strings.Contains(candidateModel, "gpt")) {
+			targetModel = parts[3]
+			promptStart = 4
+		}
+		prompt := strings.Join(parts[promptStart:], " ")
 		reqID := uuid.NewString()
 
-		r.Printf("Meminta inferensi model dari @%s: \"%s\"...\n", peer.DisplayName, prompt)
+		if targetModel != "" {
+			r.Printf("Meminta inferensi model [%s] dari @%s: \"%s\"...\n", targetModel, peer.DisplayName, prompt)
+		} else {
+			r.Printf("Meminta inferensi model dari @%s: \"%s\"...\n", peer.DisplayName, prompt)
+		}
 
 		reqPayload := protocol.AIQueryReqPayload{
-			V:          1,
-			ReqID:      reqID,
-			FromPeerID: r.idMgr.PeerID(),
-			Prompt:     prompt,
-			TS:         time.Now().Unix(),
+			V:           1,
+			ReqID:       reqID,
+			FromPeerID:  r.idMgr.PeerID(),
+			TargetModel: targetModel,
+			Prompt:      prompt,
+			TS:          time.Now().Unix(),
 		}
 		reqBytes, err := json.Marshal(reqPayload)
 		if err != nil {
