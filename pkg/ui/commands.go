@@ -72,7 +72,7 @@ var CommandCatalog = map[string]CommandHelp{
 		Command:     "/room list",
 		Summary:     "Daftar room yang kamu ikuti",
 		Usage:       "/room list",
-		Description: "Menampilkan daftar seluruh room yang saat ini kamu ikuti beserta peran kamu (master atau guest).",
+		Description: "Menampilkan room yang diikuti beserta peran dan room tersedia di LAN. Pencarian room otomatis berlangsung setiap tiga detik.",
 		Example:     "/room list",
 		CommonError: "Tidak ada.",
 	},

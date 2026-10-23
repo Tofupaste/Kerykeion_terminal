@@ -25,6 +25,9 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleAttachmentKey(key)
 	}
 	switch msg := msg.(type) {
+	case roomCatalogTick:
+		m.refreshRoomCatalog()
+		return m, roomCatalogTickCommand()
 	case tea.KeyMsg:
 		if cmd, handled := m.handleKey(msg); handled {
 			return m, cmd

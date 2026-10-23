@@ -21,6 +21,7 @@ import (
 )
 
 type AppModel struct {
+	availableNames []string
 	copyIDs        *copyIDMenu
 	copyGeneration uint64
 	cfg            *config.Config
@@ -120,7 +121,7 @@ func NewTUI(
 
 func (m *AppModel) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	cmds = append(cmds, textinput.Blink)
+	cmds = append(cmds, textinput.Blink, roomCatalogTickCommand())
 	if m.initialRoom != "" {
 		target := m.initialRoom
 		cmds = append(cmds, func() tea.Msg {
@@ -193,6 +194,15 @@ func (m *AppModel) completeRoom(command, prefix string) {
 			return
 		}
 	}
+	if command == "/join" {
+		for _, name := range m.availableRoomNames() {
+			if strings.HasPrefix(name, prefix) {
+				m.setCompletion(command + " " + name)
+				return
+			}
+		}
+	}
+
 }
 
 func (m *AppModel) handleUserInput(input string) tea.Cmd {

@@ -19,7 +19,7 @@ func (r *REPL) commandRoomNew(parts []string) {
 
 func (r *REPL) commandRoomList(parts []string) {
 	rooms, err := r.store.GetAllRooms()
-	if err != nil || len(rooms) == 0 {
+	if err != nil {
 		r.Printf("Belum ada room yang diikuti.\n")
 		return
 	}
@@ -31,6 +31,20 @@ func (r *REPL) commandRoomList(parts []string) {
 		}
 		r.Printf("- #%s [%s]\n", rm.Name, role)
 	}
+	var available []string
+	joined := make(map[string]bool)
+	for _, record := range rooms {
+		if record.State == "active" {
+			joined[record.Name] = true
+		}
+	}
+	for _, record := range r.roomMgr.AvailableRooms() {
+		if !joined[record.Name] {
+			available = append(available, record.Name)
+		}
+	}
+	r.Printf("%s\n", availableRoomList(r.cfg.Language, available))
+
 }
 
 func (r *REPL) commandRoomInfo(parts []string) {

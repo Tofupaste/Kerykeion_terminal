@@ -5,6 +5,11 @@ import "fmt"
 const defaultStatusText = "Ketik /help untuk panduan"
 
 var englishText = map[string]string{
+	"Tersedia di LAN":                           "Available on LAN",
+	"Room tersedia di LAN (refresh 3 detik):":   "Rooms available on LAN (refresh every 3 seconds):",
+	"Tidak ada room LAN lain yang terdeteksi.":  "No other LAN rooms detected.",
+	"Room tersedia: #%s. Gunakan /join <nama>.": "Available rooms: #%s. Use /join <name>.",
+
 	"Meminta file %s...":                                     "Requesting file %s...",
 	"Gunakan: /get <nomor|ID_file>":                          "Usage: /get <number|file_ID>",
 	"Unduh: F6 → /get %s":                                    "Download: F6 → /get %s",

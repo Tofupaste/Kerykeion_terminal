@@ -18,7 +18,7 @@ var englishHelp = map[string]englishCommandHelp{
 	"join":          {"/join <room>", "Join a LAN room, or create it if it cannot be found.", "/join ngobs"},
 	"room":          {"/room <new|list|info|transfer> [arguments]", "Create rooms, list memberships, inspect members, or transfer ownership.", "/room info ngobs"},
 	"room new":      {"/room new <name>", "Create a room. You become its master. Names use 2-32 lowercase letters, digits, '-' or '_'.", "/room new project-a"},
-	"room list":     {"/room list", "List your active rooms and your role in each room.", "/room list"},
+	"room list":     {"/room list", "List joined rooms and rooms available on the LAN. Available rooms refresh every three seconds.", "/room list"},
 	"room info":     {"/room info [name]", "Show the room master, creation date, and members. Defaults to the active room.", "/room info ngobs"},
 	"room transfer": {"/room transfer <room> <peer>", "Transfer room ownership to another peer. Only the master can do this.", "/room transfer ngobs aria"},
 	"go":            {"/go <room_or_peer>", "Open a joined room or a private conversation, including minimized chats.", "/go ngobs"},

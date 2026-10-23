@@ -30,6 +30,7 @@ func (m *AppModel) commandRoomList(parts []string) tea.Cmd {
 		}
 		sb.WriteString(fmt.Sprintf("- #%s [%s]\n", r.Name, role))
 	}
+	sb.WriteString("\n" + availableRoomList(m.cfg.Language, m.availableRoomNames()))
 	m.addSystemLog(sb.String())
 	return nil
 }

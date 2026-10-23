@@ -108,22 +108,7 @@ func (m *AppModel) conversationTitle() string {
 }
 
 func (m *AppModel) renderSidebar(height int) string {
-	var lines []string
-	lines = append(lines, m.tr("Room"))
-	if len(m.rooms) == 0 {
-		lines = append(lines, m.tr("Belum ada room. /join <nama> untuk mulai."))
-	}
-	for _, room := range m.rooms {
-		mark := "  "
-		if m.isRoom && m.activeTarget == room.Name {
-			mark = "> "
-		}
-		role := ""
-		if room.MyRole == "master" {
-			role = " *"
-		}
-		lines = append(lines, mark+"#"+room.Name+role)
-	}
+	lines := m.roomSidebarLines()
 	lines = append(lines, "", m.tr("Rekan"))
 	if len(m.peers) == 0 {
 		lines = append(lines, m.tr("Belum ada rekan terdeteksi. /doctor untuk diagnosis."))
@@ -197,4 +182,29 @@ func (m *AppModel) panelHints() string {
 		}
 	}
 	return "Ctrl+Y " + m.tr("Salin ID") + " · " + hints
+}
+
+func (m *AppModel) roomSidebarLines() []string {
+	var lines []string
+	lines = append(lines, m.tr("Room"))
+	if len(m.rooms) == 0 {
+		lines = append(lines, m.tr("Belum ada room. /join <nama> untuk mulai."))
+	}
+	for _, room := range m.rooms {
+		mark := "  "
+		if m.isRoom && m.activeTarget == room.Name {
+			mark = "> "
+		}
+		role := ""
+		if room.MyRole == "master" {
+			role = " *"
+		}
+		lines = append(lines, mark+"#"+room.Name+role)
+	}
+	lines = append(lines, "", m.tr("Tersedia di LAN"))
+	for _, name := range m.availableRoomNames() {
+		lines = append(lines, "  #"+name)
+	}
+
+	return lines
 }
