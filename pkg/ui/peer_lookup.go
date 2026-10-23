@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	"kerykeion/pkg/discovery"
+	"kerykeion/pkg/identity"
 )
 
 func peerIDPrefix(id string, peers []discovery.PeerInfo) string {
-	length := min(8, len(id))
+	length := min(identity.ShortIDLength, len(id))
 	for length < len(id) && prefixCollides(id, id[:length], peers) {
 		length++
 	}

@@ -23,7 +23,7 @@ func TestResolvePeerSelectors(t *testing.T) {
 			t.Fatalf("selector %q failed", target)
 		}
 	}
-	for _, target := range []string{"Budi", "abcdef00", "Budi#abcdef00"} {
+	for _, target := range []string{"Budi", "abcde", "Budi#abcde", "abcdef00", "Budi#abcdef00"} {
 		peer, matches := resolvePeer(peers, target)
 		if peer != nil || len(matches) != 2 {
 			t.Fatalf("ambiguous %q selected a peer", target)
@@ -39,7 +39,7 @@ func TestResolvePeerInvalidAndSpacedNames(t *testing.T) {
 			t.Fatalf("invalid selector %q matched", target)
 		}
 	}
-	for _, target := range []string{"Aria Putra", `"Aria Putra"`, "Aria Putra#cccccccc"} {
+	for _, target := range []string{"Aria Putra", `"Aria Putra"`, "Aria Putra#ccccc"} {
 		peer, _ := resolvePeer(peers, target)
 		if peer == nil || peer.PeerID != peers[2].PeerID {
 			t.Fatalf("spaced username %q failed", target)
@@ -52,7 +52,7 @@ func TestPeerLabelsExtendCollidingIDPrefixes(t *testing.T) {
 	if peerLabel(peers[0], peers) != "Budi#abcdef001" || peerLabel(peers[1], peers) != "Budi#abcdef002" {
 		t.Fatal("labels did not extend colliding prefixes")
 	}
-	if peerLabel(peers[2], peers) != "Aria Putra#cccccccc" {
+	if peerLabel(peers[2], peers) != "Aria Putra#ccccc" {
 		t.Fatal("unexpected default prefix")
 	}
 }

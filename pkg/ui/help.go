@@ -14,7 +14,7 @@ type englishCommandHelp struct {
 var englishHelp = map[string]englishCommandHelp{
 	"help":          {"/help [command]", "Show commands or detailed help for one command.", "/help room new"},
 	"who":           {"/who", "List your identity and discovered LAN peers, including full IDs, name#ID selectors, and connection status.", "/who"},
-	"dm":            {"/dm <name|ID|name#ID>", "Open a private conversation by name, full ID, unique ID prefix, or name#ID (name+ID also works). Duplicate names and ambiguous prefixes show choices. Use /who to copy an ID.", "/dm aria#12ab34cd"},
+	"dm":            {"/dm <name|ID|name#ID>", "Open a private conversation by name, full ID, unique ID prefix, or name#ID (name+ID also works). Duplicate names and ambiguous prefixes show choices. Use /who to copy an ID.", "/dm aria#12ab3"},
 	"join":          {"/join <room>", "Join a LAN room, or create it if it cannot be found.", "/join ngobs"},
 	"room":          {"/room <new|list|info|transfer> [arguments]", "Create rooms, list memberships, inspect members, or transfer ownership.", "/room info ngobs"},
 	"room new":      {"/room new <name>", "Create a room. You become its master. Names use 2-32 lowercase letters, digits, '-' or '_'.", "/room new project-a"},

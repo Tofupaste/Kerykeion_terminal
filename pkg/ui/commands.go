@@ -41,7 +41,7 @@ var CommandCatalog = map[string]CommandHelp{
 		Summary:     "Buka percakapan pribadi dengan rekan",
 		Usage:       "/dm <nama|ID|nama#ID>",
 		Description: "Membuka DM berdasarkan nama, ID lengkap, prefix ID unik, atau nama#ID (nama+ID juga bisa). Nama atau prefix yang ambigu menampilkan pilihan. Gunakan /who untuk menyalin ID.",
-		Example:     "/dm aria#12ab34cd",
+		Example:     "/dm aria#12ab3",
 		CommonError: "Nama belum terdaftar di jaringan. Pastikan rekan sudah membuka aplikasi.",
 	},
 	"join": {
