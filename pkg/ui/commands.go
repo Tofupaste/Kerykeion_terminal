@@ -40,16 +40,16 @@ var CommandCatalog = map[string]CommandHelp{
 		Command:     "/who",
 		Summary:     "Lihat daftar rekan yang sedang online",
 		Usage:       "/who",
-		Description: "Memindai dan menampilkan rekan di jaringan kantor lokal beserta status koneksinya.",
+		Description: "Menampilkan identitas sendiri dan rekan LAN beserta ID lengkap, format nama#ID, dan status koneksi.",
 		Example:     "/who",
 		CommonError: "Jika rekan tidak muncul, cek apakah sudah di WiFi yang sama atau jalankan /doctor.",
 	},
 	"dm": {
 		Command:     "/dm",
 		Summary:     "Buka percakapan pribadi dengan rekan",
-		Usage:       "/dm <nama_atau_peer_id>",
-		Description: "Mengalihkan percakapan aktif ke pesan pribadi (Direct Message) dengan rekan yang dituju.",
-		Example:     "/dm aria",
+		Usage:       "/dm <nama|ID|nama#ID>",
+		Description: "Membuka DM berdasarkan nama, ID lengkap, prefix ID unik, atau nama#ID (nama+ID juga bisa). Nama atau prefix yang ambigu menampilkan pilihan. Gunakan /who untuk menyalin ID.",
+		Example:     "/dm aria#12ab34cd",
 		CommonError: "Nama belum terdaftar di jaringan. Pastikan rekan sudah membuka aplikasi.",
 	},
 	"join": {
@@ -120,7 +120,7 @@ var CommandCatalog = map[string]CommandHelp{
 		Command:     "/get",
 		Summary:     "Unduh file dari pengumuman room",
 		Usage:       "/get <nomor_pengumuman>",
-		Description: "Mengunduh file yang telah diumumkan di room berdasarkan nomor pengumuman [#no].",
+		Description: "Mengunduh file berdasarkan nomor pengumuman [#no] di aplikasi ini. File dikirim dari cache pemilik atau anggota room lain yang memilikinya. Lokasi penyimpanan ditampilkan setelah selesai. Di TUI, jalankan dari panel sistem.",
 		Example:     "/get 1",
 		CommonError: "Nomor pengumuman tidak ditemukan di room ini.",
 	},
@@ -254,7 +254,7 @@ func FormatQuickHelp() string {
 
 	sb.WriteString("Obrolan & Room:\n")
 	sb.WriteString("  /join <nama_room>               Masuk ke room atau otomatis buat baru\n")
-	sb.WriteString("  /dm <nama_rekan>                Kirim pesan pribadi (Direct Message)\n")
+	sb.WriteString("  /dm <nama|ID|nama#ID>           Buka pesan pribadi; /who untuk ID\n")
 	sb.WriteString("  /go <nama_room_atau_rekan>      Pindah fokus ke percakapan lain\n")
 	sb.WriteString("  /room new <nama_room>           Buat room baru secara eksplisit\n")
 	sb.WriteString("  /room list                      Lihat daftar seluruh room yang kamu ikuti\n")

@@ -7,14 +7,11 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"kerykeion/pkg/discovery"
 )
 
-func shortPeerID(id string) string {
-	if len(id) > 6 {
-		return id[:6]
-	}
-	return id
-}
+func shortPeerID(id string) string { return peerIDPrefix(id, nil) }
 
 func wrapTerminalText(text string, width int) string {
 	return ansi.Wrap(text, max(1, width), "")
@@ -104,7 +101,7 @@ func (m *AppModel) conversationTitle() string {
 	}
 	if m.discovery != nil {
 		if peer, ok := m.discovery.GetPeer(m.activeTarget); ok {
-			return "@" + peer.DisplayName
+			return "@" + peerLabel(*peer, m.peers)
 		}
 	}
 	return "@" + shortPeerID(m.activeTarget)
@@ -140,7 +137,7 @@ func (m *AppModel) renderSidebar(height int) string {
 		if !peer.IsOnline {
 			status = "stale"
 		}
-		lines = append(lines, mark+peer.DisplayName+" ["+status+"]")
+		lines = append(lines, mark+peer.DisplayName, "  #"+peerIDPrefix(peer.PeerID, m.peers)+" ["+status+"]")
 	}
 	for i := range lines {
 		lines[i] = ansi.Truncate(lines[i], 22, "…")
@@ -173,7 +170,7 @@ func (m *AppModel) renderPanels() string {
 	if m.cfg.Language == "en" {
 		language = "English"
 	}
-	header := lipgloss.NewStyle().Bold(true).Render("KERYKEION") + " · " + m.idMgr.DisplayName() + " · " + language
+	header := lipgloss.NewStyle().Bold(true).Render("KERYKEION") + " · " + peerLabel(discovery.PeerInfo{DisplayName: m.idMgr.DisplayName(), PeerID: m.idMgr.PeerID()}, m.peers) + " · " + language
 	status := m.statusText
 	if m.activeTarget != "" && !m.chatVisible {
 		status = m.tr("Chat diminimalkan: %s", m.conversationTitle())

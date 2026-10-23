@@ -28,6 +28,7 @@ const (
 	TypeFileAnnounce byte = 0x30
 	TypeFileWhoHas  byte = 0x31
 	TypeFileHave    byte = 0x32
+	TypeFileRequest byte = 0x33
 	TypeAIQueryReq   byte = 0x40
 	TypeAIQueryRes   byte = 0x41
 	TypeAISessionSync byte = 0x42
@@ -130,6 +131,7 @@ type RoomHerePacket struct {
 
 // TCP Payloads
 type HelloPayload struct {
+	ConnType string `json:"conn_type,omitempty"`
 	V           int      `json:"v"`
 	PeerID      string   `json:"peer_id"`
 	DisplayName string   `json:"display_name"`
@@ -263,6 +265,7 @@ type RoomSyncResPayload struct {
 	V        int          `json:"v"`
 	Room     string       `json:"room"`
 	Messages []MsgPayload `json:"messages"`
+	AuthorKeys map[string]string `json:"author_keys,omitempty"`
 }
 
 type FileAnnouncePayload struct {
@@ -288,6 +291,12 @@ type FileHavePayload struct {
 	Room   string `json:"room"`
 	FileID string `json:"file_id"`
 	PeerID string `json:"peer_id"`
+}
+
+type FileRequestPayload struct {
+	V      int    `json:"v"`
+	Room   string `json:"room"`
+	FileID string `json:"file_id"`
 }
 
 type AIQueryReqPayload struct {
@@ -317,4 +326,3 @@ type AISessionSyncPayload struct {
 	GitDiff     string `json:"git_diff,omitempty"`
 	TS          int64  `json:"ts"`
 }
-

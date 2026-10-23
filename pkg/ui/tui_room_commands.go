@@ -54,7 +54,7 @@ func (m *AppModel) commandRoomInfo(parts []string) tea.Cmd {
 	for _, mID := range members {
 		name := shortPeerID(mID)
 		if p, ok := m.discovery.GetPeer(mID); ok {
-			name = p.DisplayName
+			name = peerLabel(*p, m.peers)
 		}
 		sb.WriteString(fmt.Sprintf("  - %s\n", name))
 	}

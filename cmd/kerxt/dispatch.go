@@ -24,9 +24,11 @@ func (d frameDispatcher) handle(connID string, frameType byte, payload []byte, r
 	case protocol.TypeMsg:
 		msgSvc.HandleIncomingMsg(payload, remotePeerID)
 	case protocol.TypeMsgAck:
-		msgSvc.HandleIncomingMsgAck(payload)
+		msgSvc.HandleIncomingMsgAck(payload, remotePeerID)
 	case protocol.TypeRoomJoin:
 		roomMgr.HandleRoomJoin(payload)
+	case protocol.TypeRoomMeta:
+		roomMgr.HandleRoomMeta(payload, remotePeerID)
 	case protocol.TypeRoomLeave:
 		roomMgr.HandleRoomLeave(payload)
 	case protocol.TypeRoomClosed:
@@ -36,21 +38,26 @@ func (d frameDispatcher) handle(connID string, frameType byte, payload []byte, r
 	case protocol.TypeRoomSyncReq:
 		roomMgr.HandleRoomSyncReq(payload, remotePeerID)
 	case protocol.TypeRoomSyncRes:
-		roomMgr.HandleRoomSyncRes(payload)
+		roomMgr.HandleRoomSyncRes(payload, remotePeerID)
 	case protocol.TypeFileOffer:
 		tferMgr.HandleFileOffer(connID, payload, remotePeerID)
 	case protocol.TypeFileAccept:
-		tferMgr.HandleFileAccept(payload)
+		tferMgr.HandleFileAccept(connID, payload)
 	case protocol.TypeChunk:
 		tferMgr.HandleChunk(connID, payload, remotePeerID)
 	case protocol.TypeFileDone:
-		tferMgr.HandleFileDone(payload)
+		tferMgr.HandleFileDone(connID, payload)
 	case protocol.TypeFileAnnounce:
-		tferMgr.HandleFileAnnounce(payload)
+		tferMgr.HandleFileAnnounce(payload, remotePeerID)
 	case protocol.TypeFileWhoHas:
 		tferMgr.HandleFileWhoHas(payload, remotePeerID)
 	case protocol.TypeFileHave:
-		tferMgr.HandleFileHave(payload)
+	case protocol.TypeFileHave:
+		tferMgr.HandleFileHave(payload, remotePeerID)
+	case protocol.TypeFileRequest:
+		tferMgr.HandleFileRequest(connID, payload, remotePeerID)
+	case protocol.TypeFileReject:
+		tferMgr.HandleFileReject(connID, payload)
 	case protocol.TypeAIQueryReq:
 		if d.aiSvc != nil && d.transport != nil {
 			go func() {

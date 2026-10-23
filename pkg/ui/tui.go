@@ -339,7 +339,7 @@ func (m *AppModel) messageAuthor(authorID string) string {
 	}
 	if m.discovery != nil {
 		if peer, ok := m.discovery.GetPeer(authorID); ok {
-			return peer.DisplayName
+			return peerLabel(*peer, m.peers)
 		}
 	}
 	return shortPeerID(authorID)

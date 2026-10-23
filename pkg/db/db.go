@@ -347,11 +347,11 @@ func (s *Store) GetMessages(conversationID string, limit int) ([]MessageRecord, 
 	}
 
 	rows, err := s.db.Query(
-		`SELECT msg_id, conversation_id, author_id, body, ts, sig, status, COALESCE(file_ref, ''), created_at
+		`SELECT * FROM (SELECT msg_id, conversation_id, author_id, body, ts, sig, status, COALESCE(file_ref, ''), created_at
 		 FROM messages
 		 WHERE conversation_id = ?
-		 ORDER BY ts ASC, created_at ASC
-		 LIMIT ?`,
+		 ORDER BY ts DESC, created_at DESC
+		 LIMIT ?) ORDER BY ts ASC, created_at ASC`,
 		conversationID, limit,
 	)
 	if err != nil {

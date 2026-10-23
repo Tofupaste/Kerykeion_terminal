@@ -135,11 +135,11 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 		case protocol.TypeMsg:
 			msgAlice.HandleIncomingMsg(payload, remotePeerID)
 		case protocol.TypeMsgAck:
-			msgAlice.HandleIncomingMsgAck(payload)
+			msgAlice.HandleIncomingMsgAck(payload, remotePeerID)
 		case protocol.TypeFileAccept:
-			tferAlice.HandleFileAccept(payload)
+			tferAlice.HandleFileAccept(connID, payload)
 		case protocol.TypeFileDone:
-			tferAlice.HandleFileDone(payload)
+			tferAlice.HandleFileDone(connID, payload)
 		}
 	})
 
@@ -148,7 +148,7 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 		case protocol.TypeMsg:
 			msgBob.HandleIncomingMsg(payload, remotePeerID)
 		case protocol.TypeMsgAck:
-			msgBob.HandleIncomingMsgAck(payload)
+			msgBob.HandleIncomingMsgAck(payload, remotePeerID)
 		case protocol.TypeFileOffer:
 			tferBob.HandleFileOffer(connID, payload, remotePeerID)
 		case protocol.TypeChunk:
