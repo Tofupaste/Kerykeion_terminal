@@ -189,7 +189,7 @@ Native clipboard access uses Windows clipboard APIs, `pbcopy` on macOS, or Linux
 | `/dm <name\|ID\|name#ID>` | Open a DM by name, full ID, unique ID prefix, or qualified name (`name+ID` also works) |
 | `/join <room>` | Search for a room; create it if no room is found |
 | `/room new <name>` | Create a room explicitly |
-| `/room list` | List active local rooms |
+| `/room list` | List joined rooms and rooms found automatically on the LAN |
 | `/room info [name]` | Show room metadata and members |
 | `/room transfer <name> <peer>` | Transfer the master role |
 | `/go <target>` | Open a joined room or a conversation with a discovered peer |
@@ -312,6 +312,14 @@ sequenceDiagram
 Messages use UUIDv7 IDs when generation succeeds. The sender waits up to three seconds for an acknowledgment. If delivery fails or the acknowledgment does not arrive, it adds the message to the persistent outbox. A worker checks due entries every two seconds, and discovery events can trigger retries earlier. Outbox entries have a seven-day expiry.
 
 An ACK currently precedes the receiver's database insert. The displayed `delivered` status therefore confirms an acknowledgment, not a guarantee that the receiver committed the message to disk. Room ACKs are matched by message ID and recipient. The displayed status is shared by the room message, so it does not indicate that every member has acknowledged it.
+
+### Finding rooms
+
+The application searches for available rooms every three seconds, including in REPL mode. Each search sends a wildcard `ROOM_QUERY` over UDP to broadcast targets and known peer addresses. Active members reply with room names and metadata; duplicate catalog queries from the same peer are rate limited. Searching does not join rooms, open chat connections, or synchronize message history.
+
+Available rooms appear separately from joined rooms in the sidebar. `/room list` shows both groups, and Tab completes discovered names after `/join`. The TUI reports changes in the system panel so names remain discoverable on narrow terminals. Unchanged scans do not add log entries. A room disappears from the available list when no host has answered for ten seconds; joined rooms remain in local history.
+
+The traffic is small metadata packets, but grows with the number of peers and rooms. This is intended for a small office LAN. Both hosts must run a version that supports wildcard room searches; ordinary network broadcast restrictions still apply.
 
 ### Room lifecycle
 
