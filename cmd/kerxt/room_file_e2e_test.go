@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -38,9 +39,13 @@ func roomAnnouncement(t *testing.T, peer *roomTestPeer) protocol.FileAnnouncePay
 }
 
 func pullRoomFile(t *testing.T, peer *roomTestPeer, announcement protocol.FileAnnouncePayload) string {
+	return pullFileReference(t, peer, announcement, strconv.Itoa(announcement.AnnounceNo))
+}
+
+func pullFileReference(t *testing.T, peer *roomTestPeer, announcement protocol.FileAnnouncePayload, reference string) string {
 	t.Helper()
 	result := make(chan error, 1)
-	go func() { result <- peer.transfers.PullAnnouncedFile(announcement.AnnounceNo) }()
+	go func() { result <- peer.transfers.PullFile(reference) }()
 	select {
 	case err := <-result:
 		if err != nil {
@@ -261,5 +266,44 @@ func TestE2ERoomGetReportsSaveFailure(t *testing.T) {
 	record, err := bob.store.GetTransfer(announce.FileID, alice.id.PeerID(), "download")
 	if err != nil || record == nil || record.State == "completed" {
 		t.Fatal("failed save marked completed")
+	}
+}
+
+func TestE2EGetFullFileIDForRoomAndDM(t *testing.T) {
+	alice, bob := newRoomTestPeer(t, "Alice"), newRoomTestPeer(t, "Bob")
+	sharedRoom(t, alice, bob)
+	source := filepath.Join(t.TempDir(), "arrow-left3.svg")
+	content := []byte(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
+	if err := os.WriteFile(source, content, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := alice.transfers.SendFile(source, "", "room-e2e"); err != nil {
+		t.Fatal(err)
+	}
+	announce := roomAnnouncement(t, bob)
+	downloaded := pullFileReference(t, bob, announce, announce.FileID)
+	actual, err := os.ReadFile(downloaded)
+	if err != nil || !bytes.Equal(actual, content) {
+		t.Fatal("file ID room download failed")
+	}
+	dmSource := filepath.Join(t.TempDir(), "private.txt")
+	if err := os.WriteFile(dmSource, []byte("private attachment"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	offer, err := alice.transfers.SendFile(dmSource, bob.id.PeerID(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The sender can save its own sent attachment by ID as well.
+	own := protocol.FileAnnouncePayload{FileID: offer.FileID, SenderID: alice.id.PeerID()}
+	ownPath := pullFileReference(t, alice, own, offer.FileID)
+	if actual, err := os.ReadFile(ownPath); err != nil || string(actual) != "private attachment" {
+		t.Fatal("sent DM file ID could not be saved")
+	}
+	awaitRoomCondition(t, "DM attachment history", func() bool { messages, _ := bob.store.GetFileMessages(offer.FileID); return len(messages) > 0 })
+	recipient := protocol.FileAnnouncePayload{FileID: offer.FileID, SenderID: alice.id.PeerID()}
+	path := pullFileReference(t, bob, recipient, offer.FileID)
+	if actual, err := os.ReadFile(path); err != nil || string(actual) != "private attachment" {
+		t.Fatal("recipient DM file ID could not be retrieved")
 	}
 }
