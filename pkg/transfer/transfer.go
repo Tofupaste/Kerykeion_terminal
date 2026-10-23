@@ -23,6 +23,7 @@ import (
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
 	"kerykeion/pkg/identity"
+	"kerykeion/pkg/messaging"
 	"kerykeion/pkg/protocol"
 	"kerykeion/pkg/transport"
 )
@@ -56,6 +57,7 @@ type ProgressCallback func(p TransferProgress)
 type AnnounceCallback func(a protocol.FileAnnouncePayload)
 
 type Manager struct {
+	messages   *messaging.Service
 	cfg        *config.Config
 	idMgr      *identity.Manager
 	store      *db.Store
@@ -284,6 +286,12 @@ func (m *Manager) SendFile(filePath, targetPeerID, roomName string) (*protocol.F
 		Room:        roomName,
 	}
 
+	if m.messages != nil {
+		if err := m.messages.SendFileMessage(targetPeerID, roomName, filename, size, shaHex); err != nil {
+			return nil, err
+		}
+	}
+
 	if roomName != "" {
 		if err := m.announceRoomFile(offer, filePath); err != nil {
 			return nil, err
@@ -383,3 +391,6 @@ func (m *Manager) reportProgress(progress TransferProgress) {
 		m.onProgress(progress)
 	}
 }
+
+// SetMessaging connects attachment history before transfers start.
+func (m *Manager) SetMessaging(service *messaging.Service) { m.messages = service }
