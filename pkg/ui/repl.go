@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"kerykeion/pkg/ai"
 	"kerykeion/pkg/config"
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
@@ -16,6 +17,7 @@ import (
 	"kerykeion/pkg/messaging"
 	"kerykeion/pkg/room"
 	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
 )
 
 type REPL struct {
@@ -26,6 +28,8 @@ type REPL struct {
 	messaging *messaging.Service
 	roomMgr   *room.Manager
 	transfer  *transfer.Manager
+	transport *transport.Manager
+	aiSvc     *ai.Service
 
 	mu           sync.Mutex
 	activeTarget string
@@ -56,6 +60,8 @@ func NewREPL(
 		messaging:   services.Messaging,
 		roomMgr:     services.Rooms,
 		transfer:    services.Transfers,
+		transport:   services.Transport,
+		aiSvc:       services.AI,
 		in:          in,
 		out:         out,
 		initialRoom: initialRoom,
@@ -151,6 +157,22 @@ func (r *REPL) sendMessage(body string) {
 			r.Printf("[Galat] %v\n", err)
 		}
 	}
+
+	if strings.HasPrefix(body, "@ai ") && r.aiSvc != nil {
+		prompt := strings.TrimSpace(strings.TrimPrefix(body, "@ai "))
+		target := r.activeTarget
+		isRoom := r.isRoom
+		go func() {
+			ans, askErr := r.aiSvc.Ask(target, prompt)
+			if askErr == nil {
+				if isRoom {
+					_, _ = r.messaging.SendRoomMessage(target, ans, "")
+				} else {
+					_, _ = r.messaging.SendDM(target, ans)
+				}
+			}
+		}()
+	}
 }
 
 func (r *REPL) executeCommand(raw string) {
@@ -176,6 +198,7 @@ func (r *REPL) executeCommand(raw string) {
 		"/open":    r.commandOpen,
 		"/doctor":  r.commandDoctor,
 		"/add":     r.commandAdd,
+		"/ai":      r.commandAI,
 		"/quit":    r.commandQuit,
 	}
 	if handler, ok := handlers[cmd]; ok {

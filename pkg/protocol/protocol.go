@@ -28,6 +28,9 @@ const (
 	TypeFileAnnounce byte = 0x30
 	TypeFileWhoHas  byte = 0x31
 	TypeFileHave    byte = 0x32
+	TypeAIQueryReq   byte = 0x40
+	TypeAIQueryRes   byte = 0x41
+	TypeAISessionSync byte = 0x42
 	TypePing        byte = 0x7F
 
 	MaxFrameLength = 1024 * 1024 // 1 MB
@@ -286,3 +289,32 @@ type FileHavePayload struct {
 	FileID string `json:"file_id"`
 	PeerID string `json:"peer_id"`
 }
+
+type AIQueryReqPayload struct {
+	V           int    `json:"v"`
+	ReqID       string `json:"req_id"`
+	FromPeerID  string `json:"from_peer_id"`
+	TargetModel string `json:"target_model,omitempty"`
+	Prompt      string `json:"prompt"`
+	Context     string `json:"context,omitempty"`
+	TS          int64  `json:"ts"`
+}
+
+type AIQueryResPayload struct {
+	V      int    `json:"v"`
+	ReqID  string `json:"req_id"`
+	Model  string `json:"model"`
+	Answer string `json:"answer"`
+	Error  string `json:"error,omitempty"`
+}
+
+type AISessionSyncPayload struct {
+	V           int    `json:"v"`
+	FromPeerID  string `json:"from_peer_id"`
+	TargetConv  string `json:"target_conv"`
+	Model       string `json:"model"`
+	HistoryJSON string `json:"history_json"`
+	GitDiff     string `json:"git_diff,omitempty"`
+	TS          int64  `json:"ts"`
+}
+

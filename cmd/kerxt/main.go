@@ -6,6 +6,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"kerykeion/pkg/ai"
 	"kerykeion/pkg/config"
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
@@ -119,7 +120,15 @@ func main() {
 	tferMgr.Start()
 	defer tferMgr.Stop()
 
-	dispatcher := frameDispatcher{messages: msgSvc, rooms: roomMgr, transfers: tferMgr}
+	aiSvc := ai.NewService(cfg.AIHost, cfg.AIKey, cfg.AIModel)
+
+	dispatcher := frameDispatcher{
+		messages:  msgSvc,
+		rooms:     roomMgr,
+		transfers: tferMgr,
+		aiSvc:     aiSvc,
+		transport: transMgr,
+	}
 	transMgr.SetFrameHandler(dispatcher.handle)
 
 	peers := peerCallbacks{config: cfg, store: store, messaging: msgSvc, rooms: roomMgr, events: events}
@@ -132,7 +141,8 @@ func main() {
 
 	services := ui.Services{
 		Config: cfg, Identity: idMgr, Store: store, Discovery: disc,
-		Messaging: msgSvc, Rooms: roomMgr, Transfers: tferMgr,
+		Messaging: msgSvc, Rooms: roomMgr, Transfers: tferMgr, AI: aiSvc,
+		Transport: transMgr,
 	}
 	if forceREPL {
 		replApp := ui.NewREPL(services, os.Stdin, os.Stdout, initialRoom)

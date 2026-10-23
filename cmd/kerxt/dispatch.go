@@ -1,16 +1,20 @@
 package main
 
 import (
+	"kerykeion/pkg/ai"
 	"kerykeion/pkg/messaging"
 	"kerykeion/pkg/protocol"
 	"kerykeion/pkg/room"
 	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
 )
 
 type frameDispatcher struct {
 	messages  *messaging.Service
 	rooms     *room.Manager
 	transfers *transfer.Manager
+	aiSvc     *ai.Service
+	transport *transport.Manager
 }
 
 func (d frameDispatcher) handle(connID string, frameType byte, payload []byte, remotePeerID string) {
@@ -47,6 +51,23 @@ func (d frameDispatcher) handle(connID string, frameType byte, payload []byte, r
 		tferMgr.HandleFileWhoHas(payload, remotePeerID)
 	case protocol.TypeFileHave:
 		tferMgr.HandleFileHave(payload)
+	case protocol.TypeAIQueryReq:
+		if d.aiSvc != nil && d.transport != nil {
+			go func() {
+				resBytes, err := d.aiSvc.HandleIncomingQuery(payload)
+				if err == nil {
+					_ = d.transport.SendToPeer(remotePeerID, protocol.TypeAIQueryRes, resBytes)
+				}
+			}()
+		}
+	case protocol.TypeAIQueryRes:
+		if d.aiSvc != nil {
+			d.aiSvc.HandleIncomingRes(payload)
+		}
+	case protocol.TypeAISessionSync:
+		if d.aiSvc != nil {
+			_, _, _ = d.aiSvc.HandleIncomingSync(payload)
+		}
 	}
 
 }

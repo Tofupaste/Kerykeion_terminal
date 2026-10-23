@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"kerykeion/pkg/ai"
 	"kerykeion/pkg/config"
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
@@ -8,6 +9,7 @@ import (
 	"kerykeion/pkg/messaging"
 	"kerykeion/pkg/room"
 	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
 )
 
 type Services struct {
@@ -18,4 +20,6 @@ type Services struct {
 	Messaging *messaging.Service
 	Rooms     *room.Manager
 	Transfers *transfer.Manager
+	AI        *ai.Service
+	Transport *transport.Manager
 }

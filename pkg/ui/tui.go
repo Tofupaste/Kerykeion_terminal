@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"kerykeion/pkg/ai"
 	"kerykeion/pkg/config"
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
@@ -18,6 +19,7 @@ import (
 	"kerykeion/pkg/protocol"
 	"kerykeion/pkg/room"
 	"kerykeion/pkg/transfer"
+	"kerykeion/pkg/transport"
 )
 
 type AppModel struct {
@@ -28,6 +30,8 @@ type AppModel struct {
 	messaging *messaging.Service
 	roomMgr   *room.Manager
 	transfer  *transfer.Manager
+	transport *transport.Manager
+	aiSvc     *ai.Service
 
 	width          int
 	height         int
@@ -100,6 +104,8 @@ func NewTUI(
 		messaging:       services.Messaging,
 		roomMgr:         services.Rooms,
 		transfer:        services.Transfers,
+		transport:       services.Transport,
+		aiSvc:           services.AI,
 		textInput:       ti,
 		viewport:        vp,
 		systemViewport:  viewport.New(60, 20),
@@ -215,7 +221,25 @@ func (m *AppModel) handleUserInput(input string) tea.Cmd {
 		} else {
 			_, err = m.messaging.SendDM(target, input)
 		}
-		return MsgCommandResult{Err: err}
+		if err != nil {
+			return MsgCommandResult{Err: err}
+		}
+
+		if strings.HasPrefix(input, "@ai ") && m.aiSvc != nil {
+			prompt := strings.TrimSpace(strings.TrimPrefix(input, "@ai "))
+			go func() {
+				ans, askErr := m.aiSvc.Ask(target, prompt)
+				if askErr == nil {
+					if isRoom {
+						_, _ = m.messaging.SendRoomMessage(target, ans, "")
+					} else {
+						_, _ = m.messaging.SendDM(target, ans)
+					}
+				}
+			}()
+		}
+
+		return MsgCommandResult{}
 	}
 }
 
@@ -244,6 +268,7 @@ func (m *AppModel) executeCommand(raw string) tea.Cmd {
 		"/open":     m.commandOpen,
 		"/doctor":   m.commandDoctor,
 		"/add":      m.commandAdd,
+		"/ai":       m.commandAI,
 		"/quit":     m.commandQuit,
 	}
 	if handler, ok := handlers[cmd]; ok {

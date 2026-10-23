@@ -1,10 +1,15 @@
 package ui
 
 import (
+	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/protocol"
 )
 
 func (r *REPL) commandHelp(parts []string) {
@@ -236,4 +241,171 @@ func (r *REPL) commandAdd(parts []string) {
 func (r *REPL) commandQuit(parts []string) {
 	r.Printf("Sampai jumpa!\n")
 	r.running = false
+}
+
+func (r *REPL) commandAI(parts []string) {
+	if r.aiSvc == nil {
+		r.Printf("Layanan AI belum dikonfigurasi.\n")
+		return
+	}
+	if len(parts) < 2 {
+		r.Printf("Penggunaan /ai:\n  /ai <pertanyaan>            - Tanya model AI kantor\n  /ai model                   - Cek model aktif & daftar model server\n  /ai model <nama>            - Ganti model AI\n  /ai handoff <nama_rekan>    - Estafet sesi AI + Git Diff ke rekan\n  /ai ask @<rekan> <tanya>    - Pinjam/delegasi inferensi ke model rekan\n  /ai share                   - Bagikan riwayat sesi ke percakapan\n  /ai clear                   - Bersihkan riwayat percakapan sesi aktif\n")
+		return
+	}
+
+	sub := strings.ToLower(parts[1])
+	switch sub {
+	case "model":
+		if len(parts) >= 3 {
+			newModel := parts[2]
+			r.aiSvc.SetModel(newModel)
+			r.cfg.AIModel = newModel
+			_ = r.cfg.Save()
+			r.Printf("Model AI diubah ke: %s\n", newModel)
+			return
+		}
+		activeModel := r.aiSvc.Model()
+		r.Printf("Mengambil daftar model dari server AI kantor...\n")
+		models, err := r.aiSvc.ListModels()
+		if err != nil {
+			r.Printf("Gagal memuat model server: %v\n", err)
+			return
+		}
+		r.Printf("=== MODEL AI KANTOR (Aktif: %s) ===\n", activeModel)
+		for _, mdl := range models {
+			if mdl == activeModel {
+				r.Printf("⭐ %s (sedang digunakan)\n", mdl)
+			} else {
+				r.Printf("- %s\n", mdl)
+			}
+		}
+		r.Printf("\nGunakan: /ai model <nama_model> untuk mengganti.\n")
+	case "clear":
+		target := r.activeTarget
+		if target == "" {
+			target = "system"
+		}
+		r.aiSvc.ClearHistory(target)
+		r.Printf("Riwayat percakapan AI untuk '%s' telah dibersihkan.\n", target)
+	case "share":
+		target := r.activeTarget
+		if target == "" {
+			target = "system"
+		}
+		data, err := r.aiSvc.ExportHistory(target)
+		if err != nil || r.aiSvc.HistoryCount(target) == 0 {
+			r.Printf("Belum ada riwayat AI untuk dibagikan pada percakapan ini.\n")
+			return
+		}
+		summary := fmt.Sprintf("[AI Session Context - %s] Riwayat percakapan (%d pesan):\n%s", r.aiSvc.Model(), r.aiSvc.HistoryCount(target), string(data))
+		if r.activeTarget != "" {
+			if r.isRoom {
+				_, _ = r.messaging.SendRoomMessage(r.activeTarget, summary, "")
+			} else {
+				_, _ = r.messaging.SendDM(r.activeTarget, summary)
+			}
+			r.Printf("Riwayat sesi AI berhasil dibagikan ke percakapan aktif!\n")
+		} else {
+			r.Printf("%s\n", summary)
+		}
+	case "handoff":
+		if len(parts) < 3 {
+			r.Printf("Gunakan: /ai handoff <nama_rekan>\n")
+			return
+		}
+		targetPeer := strings.TrimPrefix(parts[2], "@")
+		peer, ok := findPeer(r.discovery, r.discovery.GetPeers(), targetPeer)
+		if !ok {
+			r.Printf("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.\n", targetPeer)
+			return
+		}
+		targetConv := r.activeTarget
+		if targetConv == "" {
+			targetConv = "project"
+		}
+		payload, err := r.aiSvc.CreateHandoffPayload(r.idMgr.PeerID(), targetConv)
+		if err != nil {
+			r.Printf("[Galat Handoff] %v\n", err)
+			return
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			r.Printf("[Galat Handoff] %v\n", err)
+			return
+		}
+		if r.transport != nil {
+			if err := r.transport.SendToPeer(peer.PeerID, protocol.TypeAISessionSync, data); err != nil {
+				r.Printf("Gagal mengirim handoff ke %s: %v\n", peer.DisplayName, err)
+				return
+			}
+			diffInfo := ""
+			if payload.GitDiff != "" {
+				diffInfo = " beserta Git Diff terkini"
+			}
+			r.Printf("✓ Sesi AI (%d pesan)%s berhasil diserahkan ke @%s!\n", r.aiSvc.HistoryCount(targetConv), diffInfo, peer.DisplayName)
+		}
+	case "ask":
+		if len(parts) < 4 || !strings.HasPrefix(parts[2], "@") {
+			r.Printf("Gunakan: /ai ask @<nama_rekan> <pertanyaan>\n")
+			return
+		}
+		targetPeer := strings.TrimPrefix(parts[2], "@")
+		peer, ok := findPeer(r.discovery, r.discovery.GetPeers(), targetPeer)
+		if !ok {
+			r.Printf("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.\n", targetPeer)
+			return
+		}
+		prompt := strings.Join(parts[3:], " ")
+		reqID := uuid.NewString()
+
+		r.Printf("Meminta inferensi model dari @%s: \"%s\"...\n", peer.DisplayName, prompt)
+
+		reqPayload := protocol.AIQueryReqPayload{
+			V:          1,
+			ReqID:      reqID,
+			FromPeerID: r.idMgr.PeerID(),
+			Prompt:     prompt,
+			TS:         time.Now().Unix(),
+		}
+		reqBytes, err := json.Marshal(reqPayload)
+		if err != nil {
+			r.Printf("Gagal membentuk query: %v\n", err)
+			return
+		}
+		ch := r.aiSvc.RegisterPendingQuery(reqID)
+		defer r.aiSvc.UnregisterPendingQuery(reqID)
+
+		if r.transport == nil {
+			r.Printf("Transport belum siap.\n")
+			return
+		}
+		if err := r.transport.SendToPeer(peer.PeerID, protocol.TypeAIQueryReq, reqBytes); err != nil {
+			r.Printf("Gagal mengirim query ke @%s: %v\n", peer.DisplayName, err)
+			return
+		}
+
+		select {
+		case res := <-ch:
+			if res.Error != "" {
+				r.Printf("[Galat AI dari @%s] %s\n", peer.DisplayName, res.Error)
+			} else {
+				r.Printf("[%s via @%s]: %s\n", res.Model, peer.DisplayName, res.Answer)
+			}
+		case <-time.After(60 * time.Second):
+			r.Printf("Batas waktu menunggu respons AI dari @%s habis.\n", peer.DisplayName)
+		}
+	default:
+		prompt := strings.Join(parts[1:], " ")
+		target := r.activeTarget
+		if target == "" {
+			target = "system"
+		}
+		r.Printf("Mengirim pertanyaan ke model AI [%s]...\n", r.aiSvc.Model())
+		ans, err := r.aiSvc.Ask(target, prompt)
+		if err != nil {
+			r.Printf("[Galat AI] %v\n", err)
+			return
+		}
+		r.Printf("%s\n", ans)
+	}
 }

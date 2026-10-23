@@ -15,6 +15,14 @@ type CommandHelp struct {
 }
 
 var CommandCatalog = map[string]CommandHelp{
+	"ai": {
+		Command:     "/ai",
+		Summary:     "Asisten AI kantor & Kolaborasi P2P (Qwen, Git-Agent)",
+		Usage:       "/ai <pertanyaan> | /ai model [nama] | /ai handoff <rekan> | /ai ask @<rekan> <tanya> | /ai share | /ai clear",
+		Description: "Tanya AI kantor, estafet sesi obrolan + Git diff ke rekan, atau pinjam inferensi model rekan di LAN. Di dalam room, ketik @ai <tanya> untuk respon bersama.",
+		Example:     "/ai handoff @budi",
+		CommonError: "Ketik /ai model untuk daftar model, atau /ai ask @rekan untuk pinjam model.",
+	},
 	"lang": {
 		Command: "/lang", Summary: "Ganti bahasa Indonesia atau English (tersimpan)",
 		Usage: "/lang <id|en>", Description: "Mengganti bahasa antarmuka dan menyimpan pilihan. F2 juga mengganti bahasa.",
@@ -261,6 +269,15 @@ func FormatQuickHelp() string {
 	sb.WriteString("  /get <nomor>                    Unduh berkas dari pengumuman room\n")
 	sb.WriteString("  /open <nomor>                   Buka tautan web yang diterima di browser\n")
 	sb.WriteString("  /export                         Simpan riwayat percakapan ke file teks\n\n")
+
+	sb.WriteString("Asisten AI Kantor & Kolaborasi P2P:\n")
+	sb.WriteString("  /ai <pertanyaan>                Kirim prompt ke model AI kantor aktif\n")
+	sb.WriteString("  /ai model [nama]                Lihat atau ganti model (default: qwen3:14b)\n")
+	sb.WriteString("  /ai handoff <nama_rekan>        Estafet sesi AI + Git Diff ke rekan di LAN\n")
+	sb.WriteString("  /ai ask @<rekan> <pertanyaan>   Pinjam/delegasi inferensi ke model rekan\n")
+	sb.WriteString("  /ai share                       Bagikan konteks riwayat AI ke percakapan\n")
+	sb.WriteString("  /ai clear                       Reset riwayat AI pada sesi saat ini\n")
+	sb.WriteString("  @ai <pertanyaan> (di room/chat) Jawaban AI otomatis dibagikan ke seluruh anggota\n\n")
 
 	sb.WriteString("Jaringan & Status:\n")
 	sb.WriteString("  /who                            Lihat daftar rekan yang sedang online di LAN\n")

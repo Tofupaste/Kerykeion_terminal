@@ -1,6 +1,6 @@
 module kerykeion
 
-go 1.27.3
+go 1.26.0
 
 require (
 	github.com/charmbracelet/bubbles v1.0.0

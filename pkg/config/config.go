@@ -20,6 +20,9 @@ type Config struct {
 	AutoDownloadImageMax int64  `json:"auto_download_image_max"`
 	RetentionDays        int    `json:"retention_days"`
 	OfficeKey            string `json:"office_key,omitempty"`
+	AIHost               string `json:"ai_host,omitempty"`
+	AIKey                string `json:"ai_key,omitempty"`
+	AIModel              string `json:"ai_model,omitempty"`
 }
 
 func DefaultConfig() (*Config, error) {
@@ -59,6 +62,9 @@ func DefaultConfig() (*Config, error) {
 		MaxFileSize:          1024 * 1024 * 1024, // 1 GB
 		AutoDownloadImageMax: 5 * 1024 * 1024,    // 5 MB
 		RetentionDays:        30,
+		AIHost:               "http://10.10.5.141:8080",
+		AIKey:                "Bearer Oy7YnRYJXpUfqjkbaE6NHyE9nL25opf8MeSkRNzXnEPW1p4ViT44qWZZBvTSIytALDI",
+		AIModel:              "qwen3:14b",
 	}, nil
 }
 
@@ -122,6 +128,15 @@ func LoadConfig(customDir string) (*Config, error) {
 		cfg.RetentionDays = stored.RetentionDays
 	}
 	cfg.OfficeKey = stored.OfficeKey
+	if stored.AIHost != "" {
+		cfg.AIHost = stored.AIHost
+	}
+	if stored.AIKey != "" {
+		cfg.AIKey = stored.AIKey
+	}
+	if stored.AIModel != "" {
+		cfg.AIModel = stored.AIModel
+	}
 	if stored.Language == "en" || stored.Language == "id" {
 		cfg.Language = stored.Language
 	}
