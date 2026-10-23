@@ -293,7 +293,7 @@ func (m *AppModel) updateViewportContent() {
 			authorName := m.messageAuthor(msg.AuthorID)
 			statusMark := m.messageStatus(msg)
 
-			sb.WriteString(fmt.Sprintf("[%s] %s%s: %s\n", tStr, authorName, statusMark, msg.Body))
+			sb.WriteString(fmt.Sprintf("[%s] %s%s: %s\n", tStr, authorName, statusMark, m.messageBody(msg)))
 		}
 	}
 

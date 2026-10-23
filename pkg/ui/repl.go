@@ -208,5 +208,5 @@ func (r *REPL) OnNewMessage(msg db.MessageRecord, isSelf bool) {
 		convPrefix = fmt.Sprintf("[%s] ", msg.ConversationID)
 	}
 
-	fmt.Fprintf(r.out, "\n%s%s <%s>: %s\n", convPrefix, tStr, authorName, msg.Body)
+	fmt.Fprintf(r.out, "\n%s%s <%s>: %s\n", convPrefix, tStr, authorName, attachmentText(r.cfg.Language, msg))
 }

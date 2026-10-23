@@ -5,6 +5,7 @@ import "fmt"
 const defaultStatusText = "Ketik /help untuk panduan"
 
 var englishText = map[string]string{
+	"Unduh: F6 → /get %d":                                                      "Download: F6 → /get %d",
 	"Identitas kamu: %s\nID: %s\n":                                             "Your identity: %s\nID: %s\n",
 	"Gunakan: /dm <nama|ID|nama#ID>":                                           "Usage: /dm <name|ID|name#ID>",
 	"Rekan '%s' cocok dengan beberapa pengguna. Gunakan ID atau nama#ID:":      "Peer '%s' matches multiple users. Use an ID or name#ID:",
