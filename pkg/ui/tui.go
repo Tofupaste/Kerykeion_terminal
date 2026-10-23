@@ -21,13 +21,15 @@ import (
 )
 
 type AppModel struct {
-	cfg       *config.Config
-	idMgr     *identity.Manager
-	store     *db.Store
-	discovery *discovery.Discovery
-	messaging *messaging.Service
-	roomMgr   *room.Manager
-	transfer  *transfer.Manager
+	copyIDs        *copyIDMenu
+	copyGeneration uint64
+	cfg            *config.Config
+	idMgr          *identity.Manager
+	store          *db.Store
+	discovery      *discovery.Discovery
+	messaging      *messaging.Service
+	roomMgr        *room.Manager
+	transfer       *transfer.Manager
 
 	width          int
 	height         int
@@ -337,6 +339,9 @@ func (m *AppModel) messageStatus(message db.MessageRecord) string {
 }
 
 func (m *AppModel) View() string {
+	if m.copyIDs != nil {
+		return m.renderCopyIDs()
+	}
 	if m.picker != nil {
 		return m.renderAttachmentPicker()
 	}

@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"kerykeion/pkg/transfer"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -35,5 +38,35 @@ func TestAttachmentsAppearInChatWithFileIDAndGetNumber(t *testing.T) {
 	m.Update(MsgNewMessage(message))
 	if !strings.Contains(m.viewport.View(), "project notes.txt") || strings.Contains(m.messageBody(message), "/get 3") {
 		t.Fatal("DM attachment was missing or used a room get number")
+	}
+}
+
+func TestCopiedFileIDCanBeUsedByGetCommand(t *testing.T) {
+	m := newPanelTestModel(t)
+	m.cfg.Language = "en"
+	path := filepath.Join(t.TempDir(), "arrow-left3.svg")
+	if err := os.WriteFile(path, []byte("svg content"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fileID, size, err := transfer.ComputeFileSHA256(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = m.store.SaveMessage(db.MessageRecord{MsgID: "file-message", ConversationID: "recipient", AuthorID: m.idMgr.PeerID(), FileRef: fileID, Body: `{"filename":"arrow-left3.svg","size":11}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = m.store.UpsertTransfer(db.TransferRecord{FileID: fileID, PeerID: m.idMgr.PeerID(), Direction: "download", State: "completed", Filename: "arrow-left3.svg", LocalPath: path, Size: size})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.transfer = transfer.New(m.cfg, m.idMgr, m.store, m.discovery, nil, nil, nil)
+	defer m.transfer.Stop()
+	command := m.executeCommand("/get " + fileID)
+	if command == nil {
+		t.Fatal("copied file ID was rejected before download")
+	}
+	if result := command().(MsgCommandResult); result.Err != nil {
+		t.Fatal(result.Err)
 	}
 }

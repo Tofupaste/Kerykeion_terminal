@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/transfer"
 )
 
 func (r *REPL) commandHelp(parts []string) {
@@ -138,17 +139,18 @@ func (r *REPL) commandSend(parts []string) {
 
 func (r *REPL) commandGet(parts []string) {
 	if len(parts) < 2 {
-		r.Printf("Gunakan: /get <nomor_pengumuman>\n")
+		r.Printf("Gunakan: /get <nomor|ID_file>\n")
 		return
 	}
-	num, err := strconv.Atoi(parts[1])
-	if err != nil {
-		r.Printf("Nomor pengumuman tidak valid.\n")
+	reference := parts[1]
+	if _, _, err := transfer.ParseFileReference(reference); err != nil {
+		r.Printf("%s\n", localized(r.cfg.Language, "Gunakan: /get <nomor|ID_file>"))
 		return
 	}
-	r.Printf("%s\n", localized(r.cfg.Language, "Meminta file #%d...", num))
+
+	r.Printf("%s\n", localized(r.cfg.Language, "Meminta file %s...", reference))
 	go func() {
-		err := r.transfer.PullAnnouncedFile(num)
+		err := r.transfer.PullFile(reference)
 		if err != nil {
 			r.Printf("[Galat Get] %v\n", err)
 		}

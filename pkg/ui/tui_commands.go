@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"kerykeion/pkg/doctor"
+	"kerykeion/pkg/transfer"
 )
 
 func (m *AppModel) commandLang(parts []string) tea.Cmd {
@@ -144,17 +145,18 @@ func (m *AppModel) commandSend(parts []string) tea.Cmd {
 
 func (m *AppModel) commandGet(parts []string) tea.Cmd {
 	if len(parts) < 2 {
-		m.addSystemLog(m.tr("Gunakan: /get <nomor_pengumuman>"))
+		m.addSystemLog(m.tr("Gunakan: /get <nomor|ID_file>"))
 		return nil
 	}
-	num, err := strconv.Atoi(parts[1])
-	if err != nil {
-		m.addSystemLog(m.tr("Nomor pengumuman tidak valid."))
+	reference := parts[1]
+	if _, _, err := transfer.ParseFileReference(reference); err != nil {
+		m.addSystemLog(m.tr("Gunakan: /get <nomor|ID_file>"))
 		return nil
 	}
-	m.addSystemLog(m.tr("Meminta file #%d...", num))
+
+	m.addSystemLog(m.tr("Meminta file %s...", reference))
 	return func() tea.Msg {
-		return MsgCommandResult{Err: m.transfer.PullAnnouncedFile(num)}
+		return MsgCommandResult{Err: m.transfer.PullFile(reference)}
 	}
 }
 

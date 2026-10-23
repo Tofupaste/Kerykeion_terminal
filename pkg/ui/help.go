@@ -23,7 +23,7 @@ var englishHelp = map[string]englishCommandHelp{
 	"room transfer": {"/room transfer <room> <peer>", "Transfer room ownership to another peer. Only the master can do this.", "/room transfer ngobs aria"},
 	"go":            {"/go <room_or_peer>", "Open a joined room or a private conversation, including minimized chats.", "/go ngobs"},
 	"send":          {"/send <file_path>", "Send immediately to the active DM or prepare a room announcement. Paths may contain spaces; ~/ starts at home and relative paths start where kerxt was launched. In the TUI, focus chat and press Ctrl+O to choose and confirm a file.", `/send "~/Downloads/project notes.pdf"`},
-	"get":           {"/get <number>", "Download a file using the number shown in this app. The owner sends it from cache; another room member can serve a cached copy if needed. Completion shows the saved path. Run from the system panel in the TUI.", "/get 1"},
+	"get":           {"/get <number|file_ID>", "Download using the announcement number or complete file ID copied with Ctrl+Y. Room files can come from the owner or another member's cache. DM attachments already download automatically; /get by ID shows the saved path or retries from the original sender. Completion shows the saved path. Run from the system panel in the TUI.", "/get 1"},
 	"leave":         {"/leave [room]", "Leave a room without closing it for other members.", "/leave ngobs"},
 	"disband":       {"/disband [room]", "Disband a room for its members. Only the master can do this.", "/disband ngobs"},
 	"name":          {"/name <new_name>", "Change your display name while keeping your cryptographic identity.", "/name Aria"},
@@ -53,6 +53,7 @@ func quickHelp(language string) string {
 	out.WriteString("\n" + localized(language, "F2 Bahasa · F4 Chat · F6 Fokus · PgUp/PgDn Gulir · Ctrl+C Keluar"))
 	out.WriteString("\n" + localized(language, "Ctrl+O Pilih file saat fokus chat (TUI)"))
 	out.WriteString("\n" + localized(language, "Picker: Enter pilih lalu konfirmasi kirim; Backspace kembali; Esc batal."))
+	out.WriteString("\nCtrl+Y " + localized(language, "Salin ID"))
 	out.WriteString("\n" + localized(language, "Esc Minimalkan chat"))
 	return out.String()
 }

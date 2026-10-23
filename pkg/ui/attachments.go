@@ -28,5 +28,5 @@ func (m *AppModel) messageBody(message db.MessageRecord) string {
 			return text + "\n" + m.tr("Unduh: F6 → /get %d", number)
 		}
 	}
-	return text
+	return text + "\n" + m.tr("Unduh: F6 → /get %s", message.FileRef)
 }
