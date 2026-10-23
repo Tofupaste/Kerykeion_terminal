@@ -24,11 +24,14 @@ var (
 type EventCallback func(eventName, roomName, detail string)
 
 type Manager struct {
-	idMgr     *identity.Manager
-	store     *db.Store
-	discovery *discovery.Discovery
-	transport *transport.Manager
-	onEvent   EventCallback
+	availableMu    sync.Mutex
+	available      map[string]AvailableRoom
+	catalogReplies map[string]time.Time
+	idMgr          *identity.Manager
+	store          *db.Store
+	discovery      *discovery.Discovery
+	transport      *transport.Manager
+	onEvent        EventCallback
 
 	pendingQueriesMu sync.Mutex
 	pendingQueries   map[string]chan protocol.RoomHerePacket
@@ -55,6 +58,8 @@ func New(
 		onEvent:        onEvent,
 		pendingQueries: make(map[string]chan protocol.RoomHerePacket),
 		pendingMembers: make(map[string]membershipWait),
+		available:      make(map[string]AvailableRoom),
+		catalogReplies: make(map[string]time.Time),
 		ctx:            ctx,
 		cancelCtx:      cancel,
 	}
@@ -362,6 +367,13 @@ func (m *Manager) TransferMaster(name, newMasterPeerID string) error {
 }
 
 func (m *Manager) HandleRoomQuery(q protocol.RoomQueryPacket, source *net.UDPAddr, myTCPPort int) {
+	if source == nil || q.FromPeer == m.idMgr.PeerID() {
+		return
+	}
+	if q.RoomName == "*" {
+		m.handleCatalogQuery(q, source, myTCPPort)
+		return
+	}
 	norm, err := NormalizeName(q.RoomName)
 	if err != nil {
 		return
@@ -376,6 +388,13 @@ func (m *Manager) HandleRoomQuery(q protocol.RoomQueryPacket, source *net.UDPAdd
 }
 
 func (m *Manager) HandleRoomHere(h protocol.RoomHerePacket) {
+	if _, err := NormalizeName(h.RoomName); err != nil || h.FromPeer == m.idMgr.PeerID() {
+		return
+	}
+	if _, ok := m.discovery.GetPeer(h.FromPeer); !ok {
+		return
+	}
+	m.rememberAvailable(h)
 	m.pendingQueriesMu.Lock()
 	ch, ok := m.pendingQueries[h.RoomName]
 	m.pendingQueriesMu.Unlock()

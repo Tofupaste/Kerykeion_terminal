@@ -77,10 +77,11 @@ func (d *Discovery) Start(tcpPort int) error {
 	}
 	d.conn = conn
 
-	d.wg.Add(3)
+	d.wg.Add(4)
 	go d.readLoop()
 	go d.announceLoop(tcpPort)
 	go d.interfaceWatcherLoop(tcpPort)
+	go d.roomSearchLoop(tcpPort)
 
 	return nil
 }
@@ -486,6 +487,9 @@ func (d *Discovery) BroadcastRoomQuery(roomName string, myTCPPort int) {
 	d.peersMu.RLock()
 	var cachedAddrs []*net.UDPAddr
 	for _, p := range d.peers {
+		if time.Since(p.LastSeen) > 15*time.Second {
+			continue
+		}
 		if addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", p.IP, d.peerUDPPort(p))); err == nil {
 			cachedAddrs = append(cachedAddrs, addr)
 		}
@@ -516,4 +520,21 @@ func (d *Discovery) SendRoomHere(toAddr *net.UDPAddr, roomName string, gen int64
 	}
 
 	_, _ = d.conn.WriteToUDP(data, toAddr)
+}
+
+const RoomRefreshInterval = 3 * time.Second
+
+func (d *Discovery) roomSearchLoop(tcpPort int) {
+	defer d.wg.Done()
+	ticker := time.NewTicker(RoomRefreshInterval)
+	defer ticker.Stop()
+	d.BroadcastRoomQuery("*", tcpPort)
+	for {
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-ticker.C:
+			d.BroadcastRoomQuery("*", tcpPort)
+		}
+	}
 }
