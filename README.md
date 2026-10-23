@@ -158,15 +158,15 @@ English is the default TUI language. Use F2, `/lang en`, or `/lang id` to change
 
 Usernames are display names and do not have to be unique. Each identity has a stable 64-character peer ID derived from its public key. Renaming a user keeps that ID; deleting `identity.key` and creating a new identity changes it.
 
-The peer sidebar, DM title, and message authors show IDs alongside names. `/who` shows full IDs and selectors such as `Budi#12ab34cd`. Short IDs start at eight characters and grow when a longer prefix is needed to distinguish discovered peers.
+The peer sidebar, DM title, and message authors show IDs alongside names. `/who` shows full IDs and selectors such as `Budi#12ab3`. Short IDs start at five characters and grow when a longer prefix is needed to distinguish discovered peers.
 
 From the system panel, these selectors all work:
 
 ```text
 /dm Budi
-/dm 12ab34cd
-/dm Budi#12ab34cd
-/dm Budi+12ab34cd
+/dm 12ab3
+/dm Budi#12ab3
+/dm Budi+12ab3
 /dm Aria Putra
 ```
 
