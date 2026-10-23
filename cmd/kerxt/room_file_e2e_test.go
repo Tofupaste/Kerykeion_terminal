@@ -84,6 +84,15 @@ func checkRoomFileDownload(t *testing.T, size int) {
 		t.Fatal(err)
 	}
 	announce := roomAnnouncement(t, bob)
+	awaitRoomCondition(t, "attachment in room history", func() bool {
+		messages, _ := bob.store.GetMessages("room-e2e", 100)
+		for _, message := range messages {
+			if message.FileRef == announce.FileID {
+				return true
+			}
+		}
+		return false
+	})
 	downloaded := pullRoomFile(t, bob, announce)
 	got, err := os.ReadFile(downloaded)
 	if err != nil || !bytes.Equal(got, content) {
