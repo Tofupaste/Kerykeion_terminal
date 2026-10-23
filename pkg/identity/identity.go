@@ -27,11 +27,10 @@ func Fingerprint(pub ed25519.PublicKey) string {
 	return hex.EncodeToString(h[:])
 }
 
+const ShortIDLength = 5
+
 func ShortID(peerID string) string {
-	if len(peerID) <= 4 {
-		return peerID
-	}
-	return peerID[:4]
+	return peerID[:min(ShortIDLength, len(peerID))]
 }
 
 func FormatDisplayName(name, peerID string, hasDuplicate bool) string {
@@ -161,4 +160,3 @@ func VerifyBase64(pubBase64 string, message []byte, sigBase64 string) bool {
 	}
 	return Verify(pub, message, sig)
 }
-

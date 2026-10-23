@@ -81,7 +81,7 @@ func TestDisplayNameFormatting(t *testing.T) {
 	}
 
 	formattedDup := FormatDisplayName("Budi", peerID, true)
-	if formattedDup != "Budi#1234" {
-		t.Errorf("expected 'Budi#1234', got '%s'", formattedDup)
+	if formattedDup != "Budi#12345" {
+		t.Errorf("expected 'Budi#12345', got '%s'", formattedDup)
 	}
 }
