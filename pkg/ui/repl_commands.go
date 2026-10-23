@@ -314,9 +314,8 @@ func (r *REPL) commandAI(parts []string) {
 			return
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
-		peer, ok := findPeer(r.discovery, r.discovery.GetPeers(), targetPeer)
+		peer, ok := r.lookupPeer(targetPeer)
 		if !ok {
-			r.Printf("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.\n", targetPeer)
 			return
 		}
 		targetConv := r.activeTarget
@@ -350,9 +349,8 @@ func (r *REPL) commandAI(parts []string) {
 			return
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
-		peer, ok := findPeer(r.discovery, r.discovery.GetPeers(), targetPeer)
+		peer, ok := r.lookupPeer(targetPeer)
 		if !ok {
-			r.Printf("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.\n", targetPeer)
 			return
 		}
 		prompt := strings.Join(parts[3:], " ")

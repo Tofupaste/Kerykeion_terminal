@@ -52,7 +52,6 @@ func (d frameDispatcher) handle(connID string, frameType byte, payload []byte, r
 	case protocol.TypeFileWhoHas:
 		tferMgr.HandleFileWhoHas(payload, remotePeerID)
 	case protocol.TypeFileHave:
-	case protocol.TypeFileHave:
 		tferMgr.HandleFileHave(payload, remotePeerID)
 	case protocol.TypeFileRequest:
 		tferMgr.HandleFileRequest(connID, payload, remotePeerID)

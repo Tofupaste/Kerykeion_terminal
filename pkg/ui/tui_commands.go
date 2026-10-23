@@ -322,9 +322,8 @@ func (m *AppModel) commandAI(parts []string) tea.Cmd {
 			return nil
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
-		peer, ok := findPeer(m.discovery, m.peers, targetPeer)
+		peer, ok := m.lookupPeer(targetPeer)
 		if !ok {
-			m.addSystemLog(m.tr("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.", targetPeer))
 			return nil
 		}
 		targetConv := m.activeTarget
@@ -359,9 +358,8 @@ func (m *AppModel) commandAI(parts []string) tea.Cmd {
 			return nil
 		}
 		targetPeer := strings.TrimPrefix(parts[2], "@")
-		peer, ok := findPeer(m.discovery, m.peers, targetPeer)
+		peer, ok := m.lookupPeer(targetPeer)
 		if !ok {
-			m.addSystemLog(m.tr("Rekan '%s' tidak ditemukan di LAN. Ketik /who untuk daftar rekan.", targetPeer))
 			return nil
 		}
 		prompt := strings.Join(parts[3:], " ")
