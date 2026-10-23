@@ -76,7 +76,7 @@ func (r *REPL) Prompt() {
 		if r.isRoom {
 			target = "#" + r.activeTarget
 		} else {
-			target = "@" + r.activeTarget[:6]
+			target = "@" + peerIDPrefix(r.activeTarget, r.discovery.GetPeers())
 		}
 	}
 	fmt.Fprintf(r.out, "\n[%s]> ", target)
@@ -196,11 +196,11 @@ func (r *REPL) OnNewMessage(msg db.MessageRecord, isSelf bool) {
 	defer r.mu.Unlock()
 
 	tStr := time.Unix(msg.Timestamp, 0).Format("15:04")
-	authorName := msg.AuthorID[:6]
+	authorName := peerIDPrefix(msg.AuthorID, r.discovery.GetPeers())
 	if isSelf {
 		authorName = "Kamu"
 	} else if p, ok := r.discovery.GetPeer(msg.AuthorID); ok {
-		authorName = p.DisplayName
+		authorName = peerLabel(*p, r.discovery.GetPeers())
 	}
 
 	convPrefix := ""

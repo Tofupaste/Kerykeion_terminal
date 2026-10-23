@@ -19,6 +19,7 @@ type PeerInfo struct {
 	PubKey      string
 	IP          string
 	Port        int
+	UDPPort     int
 	LastSeen    time.Time
 	IsOnline    bool
 }
@@ -94,6 +95,18 @@ func (d *Discovery) Stop() {
 	d.wg.Wait()
 }
 
+func (d *Discovery) Port() int {
+	if d.conn != nil {
+		return d.conn.LocalAddr().(*net.UDPAddr).Port
+	}
+	return d.udpPort
+}
+
+// SendAnnounceTo introduces this identity at an explicit discovery address.
+func (d *Discovery) SendAnnounceTo(addr *net.UDPAddr, tcpPort int) {
+	d.sendAnnounceTo(addr, tcpPort)
+}
+
 func (d *Discovery) AddManualPeer(ipPort string) (*PeerInfo, error) {
 	host, portStr, err := net.SplitHostPort(ipPort)
 	if err != nil {
@@ -137,6 +150,13 @@ func (d *Discovery) GetPeer(peerID string) (*PeerInfo, bool) {
 	cp := *p
 	cp.IsOnline = time.Since(cp.LastSeen) <= 15*time.Second
 	return &cp, true
+}
+
+func (d *Discovery) peerUDPPort(peer *PeerInfo) int {
+	if peer.UDPPort != 0 {
+		return peer.UDPPort
+	}
+	return d.udpPort
 }
 
 func (d *Discovery) FindPeerByName(name string) (*PeerInfo, bool) {
@@ -239,7 +259,7 @@ func (d *Discovery) broadcastAnnounce(tcpPort int) {
 	d.peersMu.RLock()
 	var cachedAddrs []*net.UDPAddr
 	for _, p := range d.peers {
-		if addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", p.IP, d.udpPort)); err == nil {
+		if addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", p.IP, d.peerUDPPort(p))); err == nil {
 			cachedAddrs = append(cachedAddrs, addr)
 		}
 	}
@@ -414,6 +434,7 @@ func (d *Discovery) handleAnnounce(pkt protocol.AnnouncePacket, remoteAddr *net.
 		PubKey:      pkt.PubKey,
 		IP:          remoteIP,
 		Port:        pkt.Port,
+		UDPPort:     remoteAddr.Port,
 		LastSeen:    time.Now(),
 		IsOnline:    true,
 	}
@@ -425,6 +446,7 @@ func (d *Discovery) handleAnnounce(pkt protocol.AnnouncePacket, remoteAddr *net.
 		}
 		existing.IP = remoteIP
 		existing.Port = pkt.Port
+		existing.UDPPort = remoteAddr.Port
 		existing.DisplayName = pkt.Name
 		existing.LastSeen = time.Now()
 		existing.IsOnline = true
@@ -464,7 +486,7 @@ func (d *Discovery) BroadcastRoomQuery(roomName string, myTCPPort int) {
 	d.peersMu.RLock()
 	var cachedAddrs []*net.UDPAddr
 	for _, p := range d.peers {
-		if addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", p.IP, d.udpPort)); err == nil {
+		if addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", p.IP, d.peerUDPPort(p))); err == nil {
 			cachedAddrs = append(cachedAddrs, addr)
 		}
 	}

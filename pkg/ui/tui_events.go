@@ -153,10 +153,16 @@ func (m *AppModel) updateMessageStatus(status MsgStatusChange) {
 
 func (m *AppModel) updateTransferProgress(progress MsgProgress) {
 	if progress.ErrorMessage != "" {
+		m.statusText = m.tr("Transfer gagal: %s", progress.Filename)
 		m.addSystemLog(m.tr("[Galat Transfer] %s: %s", progress.Filename, localized(m.cfg.Language, progress.ErrorMessage)))
 		return
 	}
 	if progress.IsCompleted {
+		m.statusText = m.tr("Transfer selesai: %s", progress.Filename)
+		if progress.IsDownload && progress.LocalPath != "" {
+			m.addSystemLog(m.tr("[Transfer] %s disimpan di %s", progress.Filename, progress.LocalPath))
+			return
+		}
 		direction := m.tr("Terkirim")
 		if progress.IsDownload {
 			direction = m.tr("Selesai diunduh ke downloads/")
@@ -164,9 +170,12 @@ func (m *AppModel) updateTransferProgress(progress MsgProgress) {
 		m.addSystemLog(fmt.Sprintf("[Transfer] %s %s", progress.Filename, direction))
 		return
 	}
-	if progress.SpeedBps > 0 && progress.TotalBytes > 0 {
+	if progress.TotalBytes > 0 {
 		percent := int(progress.SentBytes * 100 / progress.TotalBytes)
-		m.statusText = fmt.Sprintf("Transfer %s: %d%% (%s/s)", progress.Filename, percent, formatBytes(progress.SpeedBps))
+		m.statusText = fmt.Sprintf("Transfer %s: %d%%", progress.Filename, percent)
+		if progress.SpeedBps > 0 {
+			m.statusText += fmt.Sprintf(" (%s/s)", formatBytes(progress.SpeedBps))
+		}
 	}
 }
 
@@ -178,6 +187,10 @@ func (m *AppModel) receiveAnnouncement(announcement MsgAnnounce) {
 
 func (m *AppModel) applyRoomEvent(event MsgRoomEvent) {
 	m.addSystemLog(m.roomEventText(event))
+	if event.Event == "ROOM_HISTORY_SYNCED" && m.isRoom && m.activeTarget == event.Room {
+		m.loadMessagesForTarget()
+		m.updateViewportContent()
+	}
 	if event.Event == "ROOM_DISBANDED" && m.isRoom && m.activeTarget == event.Room {
 		m.clearChat()
 		m.resizePanels()

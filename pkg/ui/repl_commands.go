@@ -18,6 +18,7 @@ func (r *REPL) commandHelp(parts []string) {
 func (r *REPL) commandWho(parts []string) {
 	peers := r.discovery.GetPeers()
 	r.Printf("=== DAFTAR REKAN DI LAN ===\n")
+	r.Printf("%s", localized(r.cfg.Language, "Identitas kamu: %s\nID: %s\n", r.idMgr.DisplayName(), r.idMgr.PeerID()))
 	if len(peers) == 0 {
 		r.Printf("Belum ada rekan terdeteksi di jaringan.\n")
 	}
@@ -26,24 +27,23 @@ func (r *REPL) commandWho(parts []string) {
 		if !p.IsOnline {
 			st = "⚪ stale"
 		}
-		r.Printf("- %s (%s) IP %s:%d (ID: %s)\n", p.DisplayName, st, p.IP, p.Port, p.PeerID[:8])
+		r.Printf("- %s (%s) IP %s:%d\n  ID: %s\n", peerLabel(p, peers), st, p.IP, p.Port, p.PeerID)
 	}
 }
 
 func (r *REPL) commandDm(parts []string) {
 	if len(parts) < 2 {
-		r.Printf("Gunakan: /dm <nama_rekan>\n")
+		r.Printf("%s\n", localized(r.cfg.Language, "Gunakan: /dm <nama|ID|nama#ID>"))
 		return
 	}
 	target := parts[1]
-	peer, ok := findPeer(r.discovery, r.discovery.GetPeers(), target)
+	peer, ok := r.lookupPeer(target)
 	if !ok {
-		r.Printf("Rekan '%s' tidak ditemukan.\n", target)
 		return
 	}
 	r.activeTarget = peer.PeerID
 	r.isRoom = false
-	r.Printf("Beralih ke pesan pribadi dengan %s.\n", peer.DisplayName)
+	r.Printf("%s\n", localized(r.cfg.Language, "Membuka percakapan pribadi dengan %s", peerLabel(*peer, r.discovery.GetPeers())))
 }
 
 func (r *REPL) commandJoin(parts []string) {
@@ -97,13 +97,12 @@ func (r *REPL) commandGo(parts []string) {
 		r.Printf("Pindah ke room #%s.\n", rm.Name)
 		return
 	}
-	if p, ok := r.discovery.FindPeerByName(target); ok {
+	if p, ok := r.lookupPeer(target); ok {
 		r.activeTarget = p.PeerID
 		r.isRoom = false
-		r.Printf("Pindah ke DM dengan %s.\n", p.DisplayName)
+		r.Printf("%s\n", localized(r.cfg.Language, "Membuka percakapan pribadi dengan %s", peerLabel(*p, r.discovery.GetPeers())))
 		return
 	}
-	r.Printf("Percakapan '%s' tidak ditemukan.\n", target)
 }
 
 func (r *REPL) commandSend(parts []string) {
@@ -147,6 +146,7 @@ func (r *REPL) commandGet(parts []string) {
 		r.Printf("Nomor pengumuman tidak valid.\n")
 		return
 	}
+	r.Printf("%s\n", localized(r.cfg.Language, "Meminta file #%d...", num))
 	go func() {
 		err := r.transfer.PullAnnouncedFile(num)
 		if err != nil {

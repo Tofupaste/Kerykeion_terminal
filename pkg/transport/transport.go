@@ -26,7 +26,21 @@ type ConnWrapper struct {
 	remotePeerID string
 	connType     string // "chat" or "file"
 	isOutbound   bool
+	done         chan struct{}
+	closeOnce    sync.Once
 }
+
+func (cw *ConnWrapper) Close() error {
+	err := cw.Conn.Close()
+	cw.closeOnce.Do(func() {
+		if cw.done != nil {
+			close(cw.done)
+		}
+	})
+	return err
+}
+
+func (cw *ConnWrapper) Done() <-chan struct{} { return cw.done }
 
 func (cw *ConnWrapper) WriteFrame(frameType byte, payload []byte) error {
 	cw.mu.Lock()
@@ -123,7 +137,7 @@ func (m *Manager) Start() error {
 		candidatePort := basePort + attempt
 		ln, err = tls.Listen("tcp4", fmt.Sprintf(":%d", candidatePort), tlsConfig)
 		if err == nil {
-			m.tcpPort = candidatePort
+			m.tcpPort = ln.Addr().(*net.TCPAddr).Port
 			break
 		}
 	}
@@ -204,6 +218,7 @@ func (m *Manager) handleInboundConn(rawConn net.Conn) {
 	}
 
 	cw := &ConnWrapper{
+		done:         make(chan struct{}),
 		Conn:         tlsConn,
 		remotePeerID: remotePeerID,
 		connType:     "chat",
@@ -254,6 +269,7 @@ func (m *Manager) DialPeer(targetPeerID, ip string, port int, connType string) (
 	}
 
 	cw := &ConnWrapper{
+		done:         make(chan struct{}),
 		Conn:         rawConn,
 		remotePeerID: targetPeerID,
 		connType:     connType,
@@ -267,6 +283,7 @@ func (m *Manager) DialPeer(targetPeerID, ip string, port int, connType string) (
 	}
 
 	helloPayload, _ := protocol.MarshalPayload(protocol.HelloPayload{
+		ConnType:    connType,
 		V:           1,
 		PeerID:      m.idMgr.PeerID(),
 		DisplayName: m.idMgr.DisplayName(),
@@ -337,7 +354,15 @@ func (m *Manager) handleHello(conn *ConnWrapper, payload []byte) {
 	if err := protocol.UnmarshalPayload(payload, &hello); err != nil || hello.PeerID == "" {
 		return
 	}
-	conn.remotePeerID = hello.PeerID
+	if conn.remotePeerID != "" && conn.remotePeerID != hello.PeerID {
+		return
+	}
+	if conn.remotePeerID == "" {
+		conn.remotePeerID = hello.PeerID
+	}
+	if !conn.isOutbound && hello.ConnType == "file" {
+		conn.connType = "file"
+	}
 	m.mu.Lock()
 	if conn.connType == "chat" {
 		m.chatConns[hello.PeerID] = conn
@@ -347,7 +372,8 @@ func (m *Manager) handleHello(conn *ConnWrapper, payload []byte) {
 		return
 	}
 	reply, _ := protocol.MarshalPayload(protocol.HelloPayload{
-		V: 1, PeerID: m.idMgr.PeerID(), DisplayName: m.idMgr.DisplayName(),
+		ConnType: conn.connType,
+		V:        1, PeerID: m.idMgr.PeerID(), DisplayName: m.idMgr.DisplayName(),
 	})
 	_ = conn.WriteFrame(protocol.TypeHello, reply)
 }
@@ -377,4 +403,11 @@ func (m *Manager) SendToConn(connID string, frameType byte, payload []byte) erro
 		return errors.New("connection not found")
 	}
 	return cw.WriteFrame(frameType, payload)
+}
+
+func (m *Manager) Connection(connID string) (*ConnWrapper, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	conn, ok := m.fileConns[connID]
+	return conn, ok
 }

@@ -5,6 +5,13 @@ import "fmt"
 const defaultStatusText = "Ketik /help untuk panduan"
 
 var englishText = map[string]string{
+	"Identitas kamu: %s\nID: %s\n":                                             "Your identity: %s\nID: %s\n",
+	"Gunakan: /dm <nama|ID|nama#ID>":                                           "Usage: /dm <name|ID|name#ID>",
+	"Rekan '%s' cocok dengan beberapa pengguna. Gunakan ID atau nama#ID:":      "Peer '%s' matches multiple users. Use an ID or name#ID:",
+	"Transfer gagal: %s":                                                       "Transfer failed: %s",
+	"Transfer selesai: %s":                                                     "Transfer complete: %s",
+	"Meminta file #%d...":                                                      "Requesting file #%d...",
+	"[Transfer] %s disimpan di %s":                                             "[Transfer] %s saved to %s",
 	"Ketik pesan; Ctrl+O file; F6 perintah...":                                 "Type a message; Ctrl+O attach; F6 commands...",
 	"Ctrl+O Pilih file saat fokus chat (TUI)":                                  "Ctrl+O Choose a file while chat has focus (TUI)",
 	"Picker: Enter pilih lalu konfirmasi kirim; Backspace kembali; Esc batal.": "Picker: Enter selects then confirms sending; Backspace goes back; Esc cancels.",
@@ -137,6 +144,8 @@ func (m *AppModel) roomEventText(event MsgRoomEvent) string {
 		"ROOM_CREATED": "Room created", "ROOM_JOINED": "Joined room", "ROOM_LEFT": "Left room",
 		"ROOM_DISBANDED": "Room disbanded", "ROOM_TRANSFERRED": "Room ownership changed",
 		"MEMBER_JOINED": "A member joined", "MEMBER_LEFT": "A member left",
+		"ROOM_HISTORY_SYNCED": "Room history synchronized",
+		"ROOM_MEMBERS_SYNCED": "Room members synchronized",
 	}
 	label, ok := labels[event.Event]
 	if !ok {

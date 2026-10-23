@@ -9,7 +9,7 @@ import (
 
 func commandParts(raw string) []string {
 	parts := strings.Fields(raw)
-	if len(parts) > 1 && strings.EqualFold(parts[0], "/send") {
+	if len(parts) > 1 && takesWholeTarget(parts[0]) {
 		return []string{parts[0], strings.TrimSpace(strings.TrimSpace(raw)[len(parts[0]):])}
 	}
 	return parts
@@ -52,4 +52,13 @@ func attachmentInfo(path string, limit int64) (os.FileInfo, error) {
 		return nil, fmt.Errorf("file exceeds the maximum size of %s", formatBytes(limit))
 	}
 	return info, nil
+}
+
+func takesWholeTarget(command string) bool {
+	switch strings.ToLower(command) {
+	case "/send", "/dm", "/go":
+		return true
+	default:
+		return false
+	}
 }

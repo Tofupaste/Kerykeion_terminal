@@ -13,8 +13,8 @@ type englishCommandHelp struct {
 
 var englishHelp = map[string]englishCommandHelp{
 	"help":          {"/help [command]", "Show commands or detailed help for one command.", "/help room new"},
-	"who":           {"/who", "List discovered LAN peers and their connection status.", "/who"},
-	"dm":            {"/dm <peer_name_or_id>", "Open a private conversation with a discovered peer.", "/dm aria"},
+	"who":           {"/who", "List your identity and discovered LAN peers, including full IDs, name#ID selectors, and connection status.", "/who"},
+	"dm":            {"/dm <name|ID|name#ID>", "Open a private conversation by name, full ID, unique ID prefix, or name#ID (name+ID also works). Duplicate names and ambiguous prefixes show choices. Use /who to copy an ID.", "/dm aria#12ab34cd"},
 	"join":          {"/join <room>", "Join a LAN room, or create it if it cannot be found.", "/join ngobs"},
 	"room":          {"/room <new|list|info|transfer> [arguments]", "Create rooms, list memberships, inspect members, or transfer ownership.", "/room info ngobs"},
 	"room new":      {"/room new <name>", "Create a room. You become its master. Names use 2-32 lowercase letters, digits, '-' or '_'.", "/room new project-a"},
@@ -23,7 +23,7 @@ var englishHelp = map[string]englishCommandHelp{
 	"room transfer": {"/room transfer <room> <peer>", "Transfer room ownership to another peer. Only the master can do this.", "/room transfer ngobs aria"},
 	"go":            {"/go <room_or_peer>", "Open a joined room or a private conversation, including minimized chats.", "/go ngobs"},
 	"send":          {"/send <file_path>", "Send immediately to the active DM or prepare a room announcement. Paths may contain spaces; ~/ starts at home and relative paths start where kerxt was launched. In the TUI, focus chat and press Ctrl+O to choose and confirm a file.", `/send "~/Downloads/project notes.pdf"`},
-	"get":           {"/get <number>", "Download a numbered file announcement.", "/get 1"},
+	"get":           {"/get <number>", "Download a file using the number shown in this app. The owner sends it from cache; another room member can serve a cached copy if needed. Completion shows the saved path. Run from the system panel in the TUI.", "/get 1"},
 	"leave":         {"/leave [room]", "Leave a room without closing it for other members.", "/leave ngobs"},
 	"disband":       {"/disband [room]", "Disband a room for its members. Only the master can do this.", "/disband ngobs"},
 	"name":          {"/name <new_name>", "Change your display name while keeping your cryptographic identity.", "/name Aria"},

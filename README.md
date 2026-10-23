@@ -8,7 +8,7 @@ The code is source-available under a custom license. Personal use, noncommercial
 
 ## Project status
 
-This is a development build. Direct messaging and small direct file transfers have an end-to-end test. Room discovery, membership synchronization, automatic transfer reconnection, and room media sharing still need work.
+This is a development build. Local integration tests cover direct messages, room joining and history, direct transfers, and room downloads through `/get`. Broadcast discovery across physical networks and automatic reconnection after interrupted transfers still need work.
 
 The protocol contains messages for some unfinished flows. Their presence in the code does not mean those features are ready for use across devices. See [Current limitations](#current-limitations) before testing on a shared network.
 
@@ -147,17 +147,35 @@ From the system panel, `/send` also accepts a complete path containing spaces, w
 
 Relative paths are resolved from the directory where `kerxt` was launched. `/send` starts sending immediately; it does not open the picker or request confirmation. The line-based interface (`--repl`) supports `/send` with the same path rules, but has no Ctrl+O picker. Paths are not executed as shell commands or expanded using shell variables.
 
-Selecting a file for a room uses the existing room announcement flow; its cross-device limitations still apply.
+Selecting a file for a room sends an announcement to its current members. Recipients download it with `/get <number>` from the system panel. Use the number displayed in your own application; announcement numbers are assigned locally. Completion shows the saved file path. Both peers need this version of the file-request protocol.
 
 English is the default TUI language. Use F2, `/lang en`, or `/lang id` to change it. Run slash commands from the system panel.
+
+### Peer identities and duplicate names
+
+Usernames are display names and do not have to be unique. Each identity has a stable 64-character peer ID derived from its public key. Renaming a user keeps that ID; deleting `identity.key` and creating a new identity changes it.
+
+The peer sidebar, DM title, and message authors show IDs alongside names. `/who` shows full IDs and selectors such as `Budi#12ab34cd`. Short IDs start at eight characters and grow when a longer prefix is needed to distinguish discovered peers.
+
+From the system panel, these selectors all work:
+
+```text
+/dm Budi
+/dm 12ab34cd
+/dm Budi#12ab34cd
+/dm Budi+12ab34cd
+/dm Aria Putra
+```
+
+The IDs above are examples; copy an actual selector from `/who`. Full IDs are accepted too. A name alone works when it identifies one peer. Duplicate names and ambiguous ID prefixes show choices without changing the active conversation. A qualified selector must match both the name and ID. `/go` accepts the same peer selectors, while joined room names retain priority.
 
 ### Commands
 
 | Command | Action |
 |---|---|
 | `/help [command]` | Show help, including subcommands such as `/help room transfer` |
-| `/who` | List discovered peers and their online/stale status |
-| `/dm <peer>` | Open a private conversation by display name or peer ID prefix |
+| `/who` | Show your identity, discovered peer names, unique selectors, full IDs, and online/stale status |
+| `/dm <name\|ID\|name#ID>` | Open a DM by name, full ID, unique ID prefix, or qualified name (`name+ID` also works) |
 | `/join <room>` | Search for a room; create it if no room is found |
 | `/room new <name>` | Create a room explicitly |
 | `/room list` | List active local rooms |
@@ -165,7 +183,7 @@ English is the default TUI language. Use F2, `/lang en`, or `/lang id` to change
 | `/room transfer <name> <peer>` | Transfer the master role |
 | `/go <target>` | Open a joined room or a conversation with a discovered peer |
 | `/send <path>` | Send immediately to the active DM or prepare a room announcement; spaces, surrounding quotes, and `~/` are supported |
-| `/get <number>` | Request a numbered room file announcement; this flow is unfinished |
+| `/get <number>` | Download the locally numbered room file announcement and show its saved path |
 | `/leave [room]` | Leave a room locally and notify online members |
 | `/disband [room]` | Close a room as its master |
 | `/name <new_name>` | Change the display name without replacing the identity |
@@ -308,7 +326,15 @@ The TUI picker asks for confirmation before handing the selected file to the tra
 6. Once all chunks are present, the receiver hashes the complete file. A matching hash leads to the final filename and `FILE_DONE` response.
 7. The sender reports success only after receiving an `ok` completion response.
 
-The persisted bitmap supports resuming when the same file is offered again. Automatic redial after disconnection is not implemented. Incoming offers are currently accepted without a consent prompt; receive-side limits and validation need further work.
+The persisted bitmap supports resuming when the same file is offered again. Automatic redial after disconnection is not implemented. Incoming offers are checked for the configured size limit, hash format, chunk layout, and safe filename. Direct offers are currently accepted without a consent prompt.
+
+### Room file downloads
+
+A room upload is cached by SHA-256 and announced to current members with `FILE_ANNOUNCE`. Each receiver assigns a local number; repeated announcements for the same room, sender, and file retain that number. Announcements are kept in memory for the current process, so the owner must announce again after a restart or for members who joined later.
+
+`/get <number>` opens a separate file connection and sends `FILE_REQUEST`. The owner checks room membership and the cached file's hash, then sends `FILE_OFFER` back over that connection. The receiver's bitmap selects missing chunks. The receiver reports completion only after hash verification, a successful rename into the downloads folder, and an updated transfer record.
+
+If the owner cannot serve the request, the requester sends `FILE_WHO_HAS` to other recorded room members. A member with a cached copy replies with `FILE_HAVE` and can serve the same request. Completed downloads remain available as cache sources for seven days. This fallback selects one source at a time; it does not download chunks from several peers simultaneously. A missing source or failed save is reported as an error.
 
 ### UI events
 
@@ -336,9 +362,9 @@ Startup cleanup removes messages older than the configured retention period, exp
 
 ## Current limitations
 
-- Room file announcements and pull requests are not connected into a complete download flow. Multi-source serving is unfinished.
-- Incoming TLS connections do not fully enforce peer identity binding, and a `HELLO` payload can replace the connection's recorded peer ID. Outgoing fingerprint checks do not close this gap.
-- File-offer validation, receive-side size limits, and consent are incomplete.
+- File announcements are not persisted or replayed to later joiners. Multi-source parallel downloads and automatic transfer redial are not implemented.
+- `HELLO` IDs must match an existing TLS-derived peer ID, but incoming TLS still allows clients without a certificate. Full inbound identity enforcement needs work.
+- Incoming direct file offers are accepted without a consent prompt. Room file requests are restricted to recorded members.
 - `/add` sends a UDP announcement; it does not establish a direct TCP connection. It currently advertises the supplied port rather than the caller's actual listening port.
 - `/doctor` checks local interfaces and socket behavior. Its UDP test is loopback, not a test of broadcast delivery between laptops.
 - Two local instances need separate configuration directories. Different UDP ports prevent ordinary discovery between them; adding IP aliases alone does not isolate listeners bound to all addresses.
@@ -357,13 +383,13 @@ go test -race ./...
 # Run the two-peer integration test on one machine
 go test -v ./cmd/kerxt -run TestE2EMessagingAndFileTransfer -count=1
 
-# Exercise room joining, history, and chat over local UDP/TLS
+# Exercise room joining, history, chat, and file downloads over local UDP/TLS
 go test -race -v ./cmd/kerxt -run TestE2ERoom -count=1
 ```
 
 The integration test runs two identities and databases with local TLS connections. It checks a direct message, its ACK, local room creation, and a small direct file transfer. Peer addresses are seeded directly; the test does not exercise UDP discovery.
 
-Room integration tests use three independent identities, databases, TCP listeners, and UDP sockets. Signed discovery announcements are sent to explicit local UDP addresses; room queries, metadata, history, and messages then use the production callbacks and dispatcher. They cover joining after a separate local room was created, three-member chat, history larger than one frame, and repeated joins without duplicate messages. These tests do not exercise broadcast routing between physical devices.
+Room integration tests use three independent identities, databases, TCP listeners, and UDP sockets. Signed discovery announcements are sent to explicit local UDP addresses; room queries, metadata, history, and messages then use the production callbacks and dispatcher. They cover joining after a separate local room was created, three-member chat, history larger than one frame, and repeated joins without duplicate messages. Room download tests exercise live announcements, empty and multi-chunk files, cache fallback, local numbering, filename collisions, partial-file resume, unavailable files, and failed saves. These tests do not exercise broadcast routing between physical devices.
 
 UI tests cover history refresh, room creation with a running event loop, input routing by panel focus, language persistence, minimize/restore behavior, terminal sizing, and scrollbar movement. These tests do not establish real-device behavior across access points, interrupted transfers, or platform-specific firewall settings.
 

@@ -22,6 +22,8 @@ var (
 type NewMessageCallback func(msg db.MessageRecord, isSelf bool)
 type StatusChangeCallback func(msgID, status string)
 
+type deliveryKey struct{ msgID, peerID string }
+
 type Service struct {
 	idMgr          *identity.Manager
 	store          *db.Store
@@ -31,7 +33,7 @@ type Service struct {
 	onStatusChange StatusChangeCallback
 
 	pendingAcksMu sync.Mutex
-	pendingAcks   map[string]chan bool // msg_id -> ack channel
+	pendingAcks   map[deliveryKey]chan bool
 
 	linksMu sync.RWMutex
 	links   []string
@@ -56,7 +58,7 @@ func New(
 		discovery:      disc,
 		onNewMessage:   onNewMessage,
 		onStatusChange: onStatusChange,
-		pendingAcks:    make(map[string]chan bool),
+		pendingAcks:    make(map[deliveryKey]chan bool),
 	}
 }
 
@@ -215,13 +217,14 @@ func (s *Service) deliverWithAck(pkt protocol.MsgPayload, targetPeerID string) {
 	}
 
 	ackCh := make(chan bool, 1)
+	key := deliveryKey{pkt.MsgID, targetPeerID}
 	s.pendingAcksMu.Lock()
-	s.pendingAcks[pkt.MsgID] = ackCh
+	s.pendingAcks[key] = ackCh
 	s.pendingAcksMu.Unlock()
 
 	defer func() {
 		s.pendingAcksMu.Lock()
-		delete(s.pendingAcks, pkt.MsgID)
+		delete(s.pendingAcks, key)
 		s.pendingAcksMu.Unlock()
 	}()
 
@@ -330,14 +333,14 @@ func (s *Service) HandleIncomingMsg(payload []byte, fromPeerID string) {
 	}
 }
 
-func (s *Service) HandleIncomingMsgAck(payload []byte) {
+func (s *Service) HandleIncomingMsgAck(payload []byte, fromPeerID string) {
 	var ack protocol.MsgAckPayload
 	if err := protocol.UnmarshalPayload(payload, &ack); err != nil {
 		return
 	}
 
 	s.pendingAcksMu.Lock()
-	if ch, ok := s.pendingAcks[ack.MsgID]; ok {
+	if ch, ok := s.pendingAcks[deliveryKey{ack.MsgID, fromPeerID}]; ok {
 		select {
 		case ch <- true:
 		default:

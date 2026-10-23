@@ -31,6 +31,7 @@ func (m *AppModel) commandWho(parts []string) tea.Cmd {
 	m.refreshRoomsAndPeers()
 	var sb strings.Builder
 	sb.WriteString(m.tr("=== DAFTAR REKAN DI LAN ===\n"))
+	sb.WriteString(m.tr("Identitas kamu: %s\nID: %s\n", m.idMgr.DisplayName(), m.idMgr.PeerID()))
 	if len(m.peers) == 0 {
 		sb.WriteString(m.tr("Belum ada rekan terdeteksi. Pastikan rekan sudah membuka aplikasi dan satu WiFi.\n"))
 	}
@@ -39,7 +40,7 @@ func (m *AppModel) commandWho(parts []string) tea.Cmd {
 		if !p.IsOnline {
 			status = "stale"
 		}
-		sb.WriteString(fmt.Sprintf("- %s (%s) IP %s:%d\n", p.DisplayName, status, p.IP, p.Port))
+		sb.WriteString(fmt.Sprintf("- %s (%s) IP %s:%d\n  ID: %s\n", peerLabel(p, m.peers), status, p.IP, p.Port, p.PeerID))
 	}
 	m.addSystemLog(sb.String())
 	return nil
@@ -47,21 +48,20 @@ func (m *AppModel) commandWho(parts []string) tea.Cmd {
 
 func (m *AppModel) commandDm(parts []string) tea.Cmd {
 	if len(parts) < 2 {
-		m.addSystemLog(m.tr("Gunakan: /dm <nama_rekan>"))
+		m.addSystemLog(m.tr("Gunakan: /dm <nama|ID|nama#ID>"))
 		return nil
 	}
 	target := parts[1]
-	peer, ok := findPeer(m.discovery, m.peers, target)
+	peer, ok := m.lookupPeer(target)
 	if !ok {
-		m.addSystemLog(m.tr("Rekan '%s' tidak ditemukan. Ketik /who untuk melihat daftar.", target))
 		return nil
 	}
 	m.activeTarget = peer.PeerID
 	m.isRoom = false
 	m.showChat()
 	m.loadMessagesForTarget()
-	m.statusText = m.tr("DM dengan %s", peer.DisplayName)
-	m.addSystemLog(m.tr("Membuka percakapan pribadi dengan %s", peer.DisplayName))
+	m.statusText = m.tr("DM dengan %s", peerLabel(*peer, m.peers))
+	m.addSystemLog(m.tr("Membuka percakapan pribadi dengan %s", peerLabel(*peer, m.peers)))
 	return nil
 }
 
@@ -118,15 +118,14 @@ func (m *AppModel) commandGo(parts []string) tea.Cmd {
 			return nil
 		}
 	}
-	if p, ok := m.discovery.FindPeerByName(target); ok {
+	if p, ok := m.lookupPeer(target); ok {
 		m.activeTarget = p.PeerID
 		m.isRoom = false
 		m.showChat()
 		m.loadMessagesForTarget()
-		m.statusText = m.tr("DM dengan %s", p.DisplayName)
+		m.statusText = m.tr("DM dengan %s", peerLabel(*p, m.peers))
 		return nil
 	}
-	m.addSystemLog(m.tr("Percakapan '%s' tidak ditemukan.", target))
 	return nil
 }
 
@@ -153,6 +152,7 @@ func (m *AppModel) commandGet(parts []string) tea.Cmd {
 		m.addSystemLog(m.tr("Nomor pengumuman tidak valid."))
 		return nil
 	}
+	m.addSystemLog(m.tr("Meminta file #%d...", num))
 	return func() tea.Msg {
 		return MsgCommandResult{Err: m.transfer.PullAnnouncedFile(num)}
 	}

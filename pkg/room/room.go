@@ -32,6 +32,8 @@ type Manager struct {
 
 	pendingQueriesMu sync.Mutex
 	pendingQueries   map[string]chan protocol.RoomHerePacket
+	pendingMembersMu sync.Mutex
+	pendingMembers   map[string]membershipWait
 
 	ctx       context.Context
 	cancelCtx context.CancelFunc
@@ -52,6 +54,7 @@ func New(
 		transport:      trans,
 		onEvent:        onEvent,
 		pendingQueries: make(map[string]chan protocol.RoomHerePacket),
+		pendingMembers: make(map[string]membershipWait),
 		ctx:            ctx,
 		cancelCtx:      cancel,
 	}
@@ -112,10 +115,7 @@ func (m *Manager) JoinRoom(name string, myTCPPort int) (*db.RoomRecord, bool, er
 		return nil, false, err
 	}
 
-	existing, err := m.store.GetRoom(norm)
-	if err == nil && existing != nil && existing.State == "active" {
-		return existing, true, nil
-	}
+	existing, _ := m.store.GetRoom(norm)
 
 	hereCh := make(chan protocol.RoomHerePacket, 5)
 	m.pendingQueriesMu.Lock()
@@ -143,7 +143,11 @@ func (m *Manager) JoinRoom(name string, myTCPPort int) (*db.RoomRecord, bool, er
 	}
 
 	if foundResp == nil {
-		return nil, false, nil // Room doesn't exist yet
+		if existing != nil && existing.State == "active" {
+			go m.reconnectRoom(existing)
+			return existing, true, nil
+		}
+		return nil, false, nil
 	}
 
 	if m.store.HasTombstone(norm, foundResp.Gen) {
@@ -159,12 +163,18 @@ func (m *Manager) JoinRoom(name string, myTCPPort int) (*db.RoomRecord, bool, er
 		LastActivity: time.Now(),
 		State:        "active",
 	}
-	_ = m.store.UpsertRoom(rec)
+	if rec.MasterID == m.idMgr.PeerID() {
+		rec.MyRole = "master"
+	}
+	if err := m.store.UpsertRoom(rec); err != nil {
+		return nil, false, err
+	}
 	_ = m.store.AddRoomMember(norm, m.idMgr.PeerID())
 	_ = m.store.AddRoomMember(norm, foundResp.FromPeer)
 
-	go m.broadcastJoinEvent(norm, foundResp.Gen)
-	go m.syncRoomHistory(norm, foundResp.FromPeer)
+	if err := m.connectRoom(norm, foundResp.Gen, foundResp.FromPeer); err != nil {
+		return nil, false, err
+	}
 
 	if m.onEvent != nil {
 		m.onEvent("ROOM_JOINED", norm, fmt.Sprintf("Berhasil bergabung ke room %s", norm))
@@ -181,19 +191,14 @@ func (m *Manager) JoinOrCreateRoom(name string, myTCPPort int) (*db.RoomRecord, 
 		return nil, false, err
 	}
 
-	// 1. Check if already active locally
-	existing, err := m.store.GetRoom(norm)
-	if err == nil && existing != nil && existing.State == "active" {
-		return existing, true, nil
-	}
-
-	// 2. Query LAN
 	rec, joined, err := m.JoinRoom(norm, myTCPPort)
-	if err == nil && joined && rec != nil {
+	if err != nil {
+		return nil, false, err
+	}
+	if joined && rec != nil {
 		return rec, true, nil
 	}
 
-	// 3. Not found on LAN: automatically create as master
 	newRec, err := m.CreateRoom(norm)
 	if err != nil {
 		return nil, false, err
@@ -219,13 +224,8 @@ func (m *Manager) broadcastJoinEvent(roomName string, gen int64) {
 
 	members, _ := m.store.GetRoomMembers(roomName)
 	for _, memberID := range members {
-		if memberID == m.idMgr.PeerID() {
-			continue
-		}
-		if peerInfo, ok := m.discovery.GetPeer(memberID); ok && peerInfo.IsOnline {
-			if conn, err := m.transport.DialPeer(memberID, peerInfo.IP, peerInfo.Port, "chat"); err == nil {
-				_ = conn.WriteFrame(protocol.TypeRoomJoin, payload)
-			}
+		if memberID != m.idMgr.PeerID() {
+			_ = m.sendRoomFrame(memberID, protocol.TypeRoomJoin, payload)
 		}
 	}
 }
@@ -361,7 +361,7 @@ func (m *Manager) TransferMaster(name, newMasterPeerID string) error {
 	return nil
 }
 
-func (m *Manager) HandleRoomQuery(q protocol.RoomQueryPacket, myTCPPort int) {
+func (m *Manager) HandleRoomQuery(q protocol.RoomQueryPacket, source *net.UDPAddr, myTCPPort int) {
 	norm, err := NormalizeName(q.RoomName)
 	if err != nil {
 		return
@@ -369,11 +369,8 @@ func (m *Manager) HandleRoomQuery(q protocol.RoomQueryPacket, myTCPPort int) {
 
 	rec, err := m.store.GetRoom(norm)
 	if err == nil && rec != nil && rec.State == "active" {
-		if peerInfo, ok := m.discovery.GetPeer(q.FromPeer); ok {
-			addr, err := net.ResolveUDPAddr("udp4", fmt.Sprintf("%s:%d", peerInfo.IP, q.FromPort))
-			if err == nil {
-				m.discovery.SendRoomHere(addr, norm, rec.Gen, rec.MasterID, myTCPPort)
-			}
+		if source != nil && q.FromPeer != m.idMgr.PeerID() {
+			m.discovery.SendRoomHere(source, norm, rec.Gen, rec.MasterID, myTCPPort)
 		}
 	}
 }
@@ -397,31 +394,25 @@ func (m *Manager) HandleRoomJoin(payload []byte) {
 		return
 	}
 
-	peerInfo, ok := m.discovery.GetPeer(pkt.PeerID)
-	if !ok {
+	if !identity.VerifyBase64(m.peerPublicKey(pkt.PeerID), pkt.SigBytes(), pkt.Sig) {
 		return
 	}
-	if !identity.VerifyBase64(peerInfo.PubKey, pkt.SigBytes(), pkt.Sig) {
-		return
-	}
-
-	_ = m.store.AddRoomMember(pkt.Name, pkt.PeerID)
 
 	rec, err := m.store.GetRoom(pkt.Name)
-	if err == nil && rec != nil && rec.State == "active" {
-		members, _ := m.store.GetRoomMembers(pkt.Name)
-		metaPayload, _ := protocol.MarshalPayload(protocol.RoomMetaPayload{
-			V:        1,
-			Name:     pkt.Name,
-			Gen:      rec.Gen,
-			MasterID: rec.MasterID,
-			Members:  members,
-		})
-		_ = m.transport.SendToPeer(pkt.PeerID, protocol.TypeRoomMeta, metaPayload)
+	if err != nil || rec == nil || rec.State != "active" || rec.Gen != pkt.Gen {
+		return
 	}
+	if err := m.store.AddRoomMember(pkt.Name, pkt.PeerID); err != nil {
+		return
+	}
+	m.broadcastRoomMeta(rec)
 
 	if m.onEvent != nil {
-		m.onEvent("MEMBER_JOINED", pkt.Name, fmt.Sprintf("%s bergabung ke room", peerInfo.DisplayName))
+		name := pkt.PeerID
+		if peer, ok := m.discovery.GetPeer(pkt.PeerID); ok {
+			name = peer.DisplayName
+		}
+		m.onEvent("MEMBER_JOINED", pkt.Name, fmt.Sprintf("%s bergabung ke room", name))
 	}
 }
 
@@ -518,12 +509,17 @@ func (m *Manager) syncRoomHistory(roomName, targetPeerID string) {
 		KnownMsgIDs:  recentIDs,
 		SinceSeconds: time.Now().AddDate(0, 0, -7).Unix(),
 	})
-	_ = m.transport.SendToPeer(targetPeerID, protocol.TypeRoomSyncReq, reqPayload)
+	_ = m.sendRoomFrame(targetPeerID, protocol.TypeRoomSyncReq, reqPayload)
 }
 
 func (m *Manager) HandleRoomSyncReq(payload []byte, fromPeerID string) {
 	var req protocol.RoomSyncReqPayload
 	if err := protocol.UnmarshalPayload(payload, &req); err != nil {
+		return
+	}
+
+	rec, err := m.store.GetRoom(req.Room)
+	if err != nil || rec == nil || rec.State != "active" || !m.roomMember(req.Room, fromPeerID) {
 		return
 	}
 
@@ -538,47 +534,42 @@ func (m *Manager) HandleRoomSyncReq(payload []byte, fromPeerID string) {
 	}
 
 	var missingMsgs []protocol.MsgPayload
-	for _, m := range msgs {
-		if !knownMap[m.MsgID] && m.Timestamp >= req.SinceSeconds {
+	authorKeys := make(map[string]string)
+	for _, message := range msgs {
+		if !knownMap[message.MsgID] && message.Timestamp >= req.SinceSeconds {
+			authorKeys[message.AuthorID] = m.peerPublicKey(message.AuthorID)
 			missingMsgs = append(missingMsgs, protocol.MsgPayload{
 				V:        1,
-				MsgID:    m.MsgID,
-				AuthorID: m.AuthorID,
-				Room:     m.ConversationID,
-				Body:     m.Body,
-				TS:       m.Timestamp,
-				Sig:      m.Signature,
-				FileRef:  m.FileRef,
+				MsgID:    message.MsgID,
+				AuthorID: message.AuthorID,
+				Room:     message.ConversationID,
+				Body:     message.Body,
+				TS:       message.Timestamp,
+				Sig:      message.Signature,
+				FileRef:  message.FileRef,
 			})
 		}
 	}
 
-	resPayload, _ := protocol.MarshalPayload(protocol.RoomSyncResPayload{
-		V:        1,
-		Room:     req.Room,
-		Messages: missingMsgs,
-	})
-	_ = m.transport.SendToPeer(fromPeerID, protocol.TypeRoomSyncRes, resPayload)
+	m.sendHistoryResponses(req.Room, fromPeerID, missingMsgs, authorKeys)
 }
 
-func (m *Manager) HandleRoomSyncRes(payload []byte) {
+func (m *Manager) HandleRoomSyncRes(payload []byte, fromPeerID string) {
 	var res protocol.RoomSyncResPayload
-	if err := protocol.UnmarshalPayload(payload, &res); err != nil {
+	if protocol.UnmarshalPayload(payload, &res) != nil {
 		return
 	}
-
+	rec, err := m.store.GetRoom(res.Room)
+	if err != nil || rec == nil || rec.State != "active" || !m.roomMember(res.Room, fromPeerID) {
+		return
+	}
+	inserted := 0
 	for _, msg := range res.Messages {
-		rec := db.MessageRecord{
-			MsgID:          msg.MsgID,
-			ConversationID: res.Room,
-			AuthorID:       msg.AuthorID,
-			Body:           msg.Body,
-			Timestamp:      msg.TS,
-			Signature:      msg.Sig,
-			Status:         "delivered",
-			FileRef:        msg.FileRef,
-			CreatedAt:      time.Now(),
+		if m.saveHistoryMessage(res.Room, msg, res.AuthorKeys[msg.AuthorID]) {
+			inserted++
 		}
-		_, _ = m.store.SaveMessage(rec)
+	}
+	if inserted > 0 && m.onEvent != nil {
+		m.onEvent("ROOM_HISTORY_SYNCED", res.Room, fmt.Sprintf("%d pesan riwayat dimuat", inserted))
 	}
 }

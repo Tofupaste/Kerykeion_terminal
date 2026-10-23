@@ -60,9 +60,19 @@ func (e *uiEvents) onStatus(id, status string) {
 	e.send(ui.MsgStatusChange{MsgID: id, Status: status})
 }
 
-func (e *uiEvents) onProgress(progress transfer.TransferProgress) { e.send(ui.MsgProgress(progress)) }
+func (e *uiEvents) onProgress(progress transfer.TransferProgress) {
+	e.send(ui.MsgProgress(progress))
+	_, repl := e.targets()
+	if repl != nil {
+		repl.OnTransferProgress(progress)
+	}
+}
 func (e *uiEvents) onAnnounce(announcement protocol.FileAnnouncePayload) {
 	e.send(ui.MsgAnnounce(announcement))
+	_, repl := e.targets()
+	if repl != nil {
+		repl.OnFileAnnounce(announcement)
+	}
 }
 
 func (e *uiEvents) onRoomEvent(event, name, detail string) {
@@ -101,8 +111,8 @@ func (p peerCallbacks) updated(peer discovery.PeerInfo) {
 	p.events.send(ui.MsgPeerUpdated(peer))
 }
 
-func (p peerCallbacks) roomQuery(query protocol.RoomQueryPacket, _ *net.UDPAddr) {
-	p.rooms.HandleRoomQuery(query, p.config.TCPPort)
+func (p peerCallbacks) roomQuery(query protocol.RoomQueryPacket, addr *net.UDPAddr) {
+	p.rooms.HandleRoomQuery(query, addr, p.config.TCPPort)
 }
 
 func (p peerCallbacks) roomHere(here protocol.RoomHerePacket, _ *net.UDPAddr) {
