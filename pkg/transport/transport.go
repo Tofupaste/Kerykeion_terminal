@@ -39,17 +39,17 @@ func (cw *ConnWrapper) RemotePeerID() string {
 }
 
 type Manager struct {
-	idMgr       *identity.Manager
-	tcpPort     int
-	tlsCert     tls.Certificate
-	listener    net.Listener
-	mu          sync.RWMutex
-	chatConns   map[string]*ConnWrapper // peerID -> connection
-	fileConns   map[string]*ConnWrapper // connID -> connection
+	idMgr        *identity.Manager
+	tcpPort      int
+	tlsCert      tls.Certificate
+	listener     net.Listener
+	mu           sync.RWMutex
+	chatConns    map[string]*ConnWrapper // peerID -> connection
+	fileConns    map[string]*ConnWrapper // connID -> connection
 	frameHandler FrameHandler
-	ctx         context.Context
-	cancelCtx   context.CancelFunc
-	wg          sync.WaitGroup
+	ctx          context.Context
+	cancelCtx    context.CancelFunc
+	wg           sync.WaitGroup
 }
 
 func New(idMgr *identity.Manager, tcpPort int) (*Manager, error) {
@@ -107,9 +107,9 @@ func (m *Manager) Start() error {
 	m.cancelCtx = cancel
 
 	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{m.tlsCert},
-		MinVersion:   tls.VersionTLS13,
-		ClientAuth:   tls.RequestClientCert,
+		Certificates:       []tls.Certificate{m.tlsCert},
+		MinVersion:         tls.VersionTLS13,
+		ClientAuth:         tls.RequestClientCert,
 		InsecureSkipVerify: true,
 		VerifyPeerCertificate: func(rawCerts [][]byte, verifiedChains [][]*x509.Certificate) error {
 			return nil
@@ -283,17 +283,7 @@ func (m *Manager) readConn(cw *ConnWrapper) {
 	m.fileConns[connID] = cw
 	m.mu.Unlock()
 
-	defer func() {
-		_ = cw.Close()
-		m.mu.Lock()
-		delete(m.fileConns, connID)
-		if cw.connType == "chat" && cw.remotePeerID != "" {
-			if cur, exists := m.chatConns[cw.remotePeerID]; exists && cur == cw {
-				delete(m.chatConns, cw.remotePeerID)
-			}
-		}
-		m.mu.Unlock()
-	}()
+	defer m.removeConnection(connID, cw)
 
 	for {
 		frameType, payload, err := protocol.ReadFrame(cw.Conn)
@@ -302,24 +292,7 @@ func (m *Manager) readConn(cw *ConnWrapper) {
 		}
 
 		if frameType == protocol.TypeHello {
-			var hello protocol.HelloPayload
-			if err := protocol.UnmarshalPayload(payload, &hello); err == nil && hello.PeerID != "" {
-				cw.remotePeerID = hello.PeerID
-				m.mu.Lock()
-				if cw.connType == "chat" {
-					m.chatConns[hello.PeerID] = cw
-				}
-				m.mu.Unlock()
-
-				if !cw.isOutbound {
-					replyHello, _ := protocol.MarshalPayload(protocol.HelloPayload{
-						V:           1,
-						PeerID:      m.idMgr.PeerID(),
-						DisplayName: m.idMgr.DisplayName(),
-					})
-					_ = cw.WriteFrame(protocol.TypeHello, replyHello)
-				}
-			}
+			m.handleHello(cw, payload)
 			continue
 		}
 
@@ -344,6 +317,39 @@ func (m *Manager) SendToPeer(peerID string, frameType byte, payload []byte) erro
 	}
 
 	return conn.WriteFrame(frameType, payload)
+}
+
+func (m *Manager) removeConnection(connID string, conn *ConnWrapper) {
+	_ = conn.Close()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.fileConns, connID)
+	if conn.connType != "chat" || conn.remotePeerID == "" {
+		return
+	}
+	if current, exists := m.chatConns[conn.remotePeerID]; exists && current == conn {
+		delete(m.chatConns, conn.remotePeerID)
+	}
+}
+
+func (m *Manager) handleHello(conn *ConnWrapper, payload []byte) {
+	var hello protocol.HelloPayload
+	if err := protocol.UnmarshalPayload(payload, &hello); err != nil || hello.PeerID == "" {
+		return
+	}
+	conn.remotePeerID = hello.PeerID
+	m.mu.Lock()
+	if conn.connType == "chat" {
+		m.chatConns[hello.PeerID] = conn
+	}
+	m.mu.Unlock()
+	if conn.isOutbound {
+		return
+	}
+	reply, _ := protocol.MarshalPayload(protocol.HelloPayload{
+		V: 1, PeerID: m.idMgr.PeerID(), DisplayName: m.idMgr.DisplayName(),
+	})
+	_ = conn.WriteFrame(protocol.TypeHello, reply)
 }
 
 func (m *Manager) IsConnected(peerID string) bool {
@@ -372,4 +378,3 @@ func (m *Manager) SendToConn(connID string, frameType byte, payload []byte) erro
 	}
 	return cw.WriteFrame(frameType, payload)
 }
-

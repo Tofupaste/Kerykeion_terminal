@@ -7,18 +7,19 @@ import (
 )
 
 type Config struct {
-	DisplayName           string `json:"display_name"`
-	TCPPort               int    `json:"tcp_port"`
-	UDPPort               int    `json:"udp_port"`
-	ConfigDir             string `json:"config_dir"`
-	DataDir               string `json:"data_dir"`
-	DownloadsDir          string `json:"downloads_dir"`
-	PartialDir            string `json:"partial_dir"`
-	CacheDir              string `json:"cache_dir"`
-	MaxFileSize           int64  `json:"max_file_size"`
-	AutoDownloadImageMax  int64  `json:"auto_download_image_max"`
-	RetentionDays         int    `json:"retention_days"`
-	OfficeKey             string `json:"office_key,omitempty"`
+	Language             string `json:"language"`
+	DisplayName          string `json:"display_name"`
+	TCPPort              int    `json:"tcp_port"`
+	UDPPort              int    `json:"udp_port"`
+	ConfigDir            string `json:"config_dir"`
+	DataDir              string `json:"data_dir"`
+	DownloadsDir         string `json:"downloads_dir"`
+	PartialDir           string `json:"partial_dir"`
+	CacheDir             string `json:"cache_dir"`
+	MaxFileSize          int64  `json:"max_file_size"`
+	AutoDownloadImageMax int64  `json:"auto_download_image_max"`
+	RetentionDays        int    `json:"retention_days"`
+	OfficeKey            string `json:"office_key,omitempty"`
 }
 
 func DefaultConfig() (*Config, error) {
@@ -46,6 +47,7 @@ func DefaultConfig() (*Config, error) {
 	}
 
 	return &Config{
+		Language:             "en",
 		DisplayName:          defaultName,
 		TCPPort:              42100,
 		UDPPort:              42101,
@@ -120,6 +122,9 @@ func LoadConfig(customDir string) (*Config, error) {
 		cfg.RetentionDays = stored.RetentionDays
 	}
 	cfg.OfficeKey = stored.OfficeKey
+	if stored.Language == "en" || stored.Language == "id" {
+		cfg.Language = stored.Language
+	}
 
 	return cfg, nil
 }

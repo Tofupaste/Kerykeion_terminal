@@ -328,13 +328,13 @@ func (m *Manager) executeDirectTransfer(filePath string, offer protocol.FileOffe
 	}
 
 	if targetIP == "" || targetPort == 0 {
-		m.reportProgress(offer.FileID, offer.Filename, offer.Size, 0, 0, false, false, "Penerima sedang offline")
+		m.reportProgress(uploadProgress(offer, 0, 0, false, "Penerima sedang offline"))
 		return
 	}
 
 	conn, err := m.transport.DialPeer(targetPeerID, targetIP, targetPort, "file")
 	if err != nil {
-		m.reportProgress(offer.FileID, offer.Filename, offer.Size, 0, 0, false, false, err.Error())
+		m.reportProgress(uploadProgress(offer, 0, 0, false, err.Error()))
 		return
 	}
 	defer conn.Close()
@@ -359,7 +359,7 @@ func (m *Manager) executeDirectTransfer(filePath string, offer protocol.FileOffe
 	select {
 	case neededBitset = <-acceptCh:
 	case <-time.After(15 * time.Second):
-		m.reportProgress(offer.FileID, offer.Filename, offer.Size, 0, 0, false, false, "Timeout menunggu persetujuan penerima")
+		m.reportProgress(uploadProgress(offer, 0, 0, false, "Timeout menunggu persetujuan penerima"))
 		return
 	}
 
@@ -380,69 +380,78 @@ func (m *Manager) executeDirectTransfer(filePath string, offer protocol.FileOffe
 		m.pendingOffersMu.Unlock()
 	}()
 
-	startTime := time.Now()
-	var sentBytes int64
+	sent, err := m.sendNeededChunks(conn, f, offer, neededBitset)
+	if err != nil {
+		return
+	}
+	m.awaitFileDone(doneCh, offer, sent)
+}
 
+func (m *Manager) sendNeededChunks(conn *transport.ConnWrapper, file *os.File, offer protocol.FileOfferPayload, needed []byte) (int64, error) {
+	start := time.Now()
+	var sent int64
 	buf := make([]byte, protocol.ChunkSize)
-	for i := 0; i < offer.TotalChunks; i++ {
-		byteIdx := i / 8
-		bitIdx := uint(i % 8)
-		if byteIdx < len(neededBitset) && (neededBitset[byteIdx]&(1<<bitIdx)) == 0 {
-			sentBytes += int64(protocol.ChunkSize)
+	for index := 0; index < offer.TotalChunks; index++ {
+		if chunkAlreadyReceived(needed, index) {
+			sent += int64(protocol.ChunkSize)
 			continue
 		}
-
-		offset := int64(i) * int64(protocol.ChunkSize)
-		n, err := f.ReadAt(buf, offset)
+		n, err := file.ReadAt(buf, int64(index)*int64(protocol.ChunkSize))
 		if err != nil && err != io.EOF {
 			break
 		}
 		if n <= 0 {
 			break
 		}
-
-		chunkPayload := make([]byte, 4+n)
-		binary.BigEndian.PutUint32(chunkPayload[0:4], uint32(i))
-		copy(chunkPayload[4:], buf[:n])
-
-		if err := conn.WriteFrame(protocol.TypeChunk, chunkPayload); err != nil {
-			m.reportProgress(offer.FileID, offer.Filename, offer.Size, sentBytes, 0, false, false, "Koneksi terputus")
-			return
+		payload := make([]byte, 4+n)
+		binary.BigEndian.PutUint32(payload[:4], uint32(index))
+		copy(payload[4:], buf[:n])
+		if err := conn.WriteFrame(protocol.TypeChunk, payload); err != nil {
+			m.reportProgress(uploadProgress(offer, sent, 0, false, "Koneksi terputus"))
+			return sent, err
 		}
-
-		sentBytes += int64(n)
-		elapsed := time.Since(startTime).Seconds()
-		var speed int64
-		if elapsed > 0 {
-			speed = int64(float64(sentBytes) / elapsed)
-		}
-		m.reportProgress(offer.FileID, offer.Filename, offer.Size, sentBytes, speed, false, false, "")
+		sent += int64(n)
+		m.reportProgress(uploadProgress(offer, sent, transferSpeed(sent, start), false, ""))
 	}
+	return sent, nil
+}
 
+func chunkAlreadyReceived(needed []byte, index int) bool {
+	byteIndex := index / 8
+	return byteIndex < len(needed) && needed[byteIndex]&(1<<uint(index%8)) == 0
+}
+
+func transferSpeed(sent int64, started time.Time) int64 {
+	elapsed := time.Since(started).Seconds()
+	if elapsed <= 0 {
+		return 0
+	}
+	return int64(float64(sent) / elapsed)
+}
+
+func (m *Manager) awaitFileDone(done <-chan string, offer protocol.FileOfferPayload, sent int64) {
 	select {
-	case status := <-doneCh:
+	case status := <-done:
 		if status == "ok" {
-			m.reportProgress(offer.FileID, offer.Filename, offer.Size, offer.Size, 0, false, true, "")
+			m.reportProgress(uploadProgress(offer, offer.Size, 0, true, ""))
 		} else {
-			m.reportProgress(offer.FileID, offer.Filename, offer.Size, sentBytes, 0, false, false, "Verifikasi integritas gagal")
+			m.reportProgress(uploadProgress(offer, sent, 0, false, "Verifikasi integritas gagal"))
 		}
 	case <-time.After(30 * time.Second):
-		m.reportProgress(offer.FileID, offer.Filename, offer.Size, sentBytes, 0, false, false, "Timeout verifikasi")
+		m.reportProgress(uploadProgress(offer, sent, 0, false, "Timeout verifikasi"))
 	}
 }
 
-func (m *Manager) reportProgress(fileID, filename string, total, sent, speed int64, isDownload, isCompleted bool, errMsg string) {
+func uploadProgress(offer protocol.FileOfferPayload, sent, speed int64, completed bool, errMsg string) TransferProgress {
+	return TransferProgress{
+		FileID: offer.FileID, Filename: offer.Filename, TotalBytes: offer.Size,
+		SentBytes: sent, SpeedBps: speed, IsCompleted: completed, ErrorMessage: errMsg,
+	}
+}
+
+func (m *Manager) reportProgress(progress TransferProgress) {
 	if m.onProgress != nil {
-		m.onProgress(TransferProgress{
-			FileID:       fileID,
-			Filename:     filename,
-			TotalBytes:   total,
-			SentBytes:    sent,
-			SpeedBps:     speed,
-			IsDownload:   isDownload,
-			IsCompleted:  isCompleted,
-			ErrorMessage: errMsg,
-		})
+		m.onProgress(progress)
 	}
 }
 
@@ -638,7 +647,10 @@ func (m *Manager) finalizeDownload(connID, fileID, partPath, metaPath, fromPeerI
 	}
 	_ = m.transport.SendToPeer(fromPeerID, protocol.TypeFileDone, donePayload)
 
-	m.reportProgress(fileID, filepath.Base(destPath), size, size, 0, true, true, "")
+	m.reportProgress(TransferProgress{
+		FileID: fileID, Filename: filepath.Base(destPath), TotalBytes: size,
+		SentBytes: size, IsDownload: true, IsCompleted: true,
+	})
 }
 
 func (m *Manager) HandleFileDone(payload []byte) {

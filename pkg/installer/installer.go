@@ -13,14 +13,14 @@ import (
 
 // SystemInfo stores detected hardware and operating system details.
 type SystemInfo struct {
-	OS             string
-	Arch           string
-	Distro         string
-	PackageManager string
-	GoInstalled    bool
-	GoVersion      string
-	UserHome       string
-	Shell          string
+	OS              string
+	Arch            string
+	Distro          string
+	PackageManager  string
+	GoInstalled     bool
+	GoVersion       string
+	UserHome        string
+	Shell           string
 	ShellConfigFile string
 }
 
@@ -136,7 +136,7 @@ func RunInstall(opts InstallOptions) error {
 	fmt.Println("==================================================")
 
 	info := DetectSystem()
-	fmt.Printf("[i] Perangkat: %s (%s)\n", info.Distro, info.Arch)
+	fmt.Printf("[i] System: %s (%s)\n", info.Distro, info.Arch)
 	if info.GoInstalled {
 		fmt.Printf("[i] Go Compiler: %s\n", info.GoVersion)
 	}
@@ -147,7 +147,7 @@ func RunInstall(opts InstallOptions) error {
 	}
 
 	if err := os.MkdirAll(installDir, 0755); err != nil {
-		return fmt.Errorf("gagal membuat direktori tujuan %s: %w", installDir, err)
+		return fmt.Errorf("failed to create installation directory %s: %w", installDir, err)
 	}
 
 	targetBinary := filepath.Join(installDir, "kerxt")
@@ -155,71 +155,26 @@ func RunInstall(opts InstallOptions) error {
 		targetBinary += ".exe"
 	}
 
-	// Determine if running within repository source
-	hasSource := false
-	if _, err := os.Stat("cmd/kerxt/main.go"); err == nil {
-		hasSource = true
+	if err := installBinary(info, installDir, targetBinary); err != nil {
+		return err
 	}
 
-	if hasSource {
-		if !info.GoInstalled {
-			fmt.Println("[!] Kode sumber terdeteksi, namun Go compiler belum terpasang.")
-			printGoInstallRecommendation(info)
-			return fmt.Errorf("go compiler tidak ditemukan di sistem")
-		}
-
-		fmt.Println("[>] Mengompilasi biner produksi (flags: -s -w)...")
-		tempOut := filepath.Join(installDir, "kerxt.tmp")
-		if runtime.GOOS == "windows" {
-			tempOut += ".exe"
-		}
-
-		buildCmd := exec.Command("go", "build", "-ldflags=-s -w", "-o", tempOut, "./cmd/kerxt")
-		buildCmd.Stdout = os.Stdout
-		buildCmd.Stderr = os.Stderr
-		if err := buildCmd.Run(); err != nil {
-			_ = os.Remove(tempOut)
-			return fmt.Errorf("proses kompilasi gagal: %w", err)
-		}
-
-		if err := os.Rename(tempOut, targetBinary); err != nil {
-			// On Windows or across partitions, fallback to copy
-			if errCopy := copyFile(tempOut, targetBinary); errCopy != nil {
-				_ = os.Remove(tempOut)
-				return fmt.Errorf("gagal memasang biner: %w", errCopy)
-			}
-			_ = os.Remove(tempOut)
-		}
-	} else {
-		// Self-install: copy current running executable to target destination
-		currentExe, err := os.Executable()
-		if err != nil {
-			return fmt.Errorf("gagal mendeteksi lokasi biner saat ini: %w", err)
-		}
-
-		// Avoid copying onto itself
-		if filepath.Clean(currentExe) != filepath.Clean(targetBinary) {
-			fmt.Println("[>] Memasang biner ke direktori tujuan...")
-			if err := copyFile(currentExe, targetBinary); err != nil {
-				return fmt.Errorf("gagal menyalin biner ke %s: %w", targetBinary, err)
-			}
-		}
+	if err := os.Chmod(targetBinary, 0755); err != nil {
+		return fmt.Errorf("failed to set executable permissions on %s: %w", targetBinary, err)
 	}
-
-	_ = os.Chmod(targetBinary, 0755)
-	fmt.Printf("[✓] Biner berhasil dipasang di: %s\n", targetBinary)
+	fmt.Printf("[✓] Binary installed: %s\n", targetBinary)
 
 	// Verify and configure PATH
 	ensurePathConfigured(info, installDir)
 
 	fmt.Println()
 	fmt.Println("==================================================")
-	fmt.Println("         Instalasi Berhasil Diselesaikan!         ")
+	fmt.Println("             Installation Complete              ")
 	fmt.Println("==================================================")
-	fmt.Println("Ketik perintah berikut di terminal untuk memulai:")
+	fmt.Println("Run this command in your terminal to start:")
 	fmt.Println("  kerxt")
 	fmt.Println()
-	fmt.Println("Untuk diagnosa jaringan dan firewall:")
+	fmt.Println("For network and firewall diagnostics:")
 	fmt.Println("  kerxt doctor")
 	fmt.Println("==================================================")
 
@@ -243,9 +198,9 @@ func RunUninstall(purgeData bool) error {
 	removedAny := false
 	if _, err := os.Stat(targetBinary); err == nil {
 		if err := os.Remove(targetBinary); err != nil {
-			fmt.Printf("[!] Gagal menghapus biner di %s: %v\n", targetBinary, err)
+			fmt.Printf("[!] Failed to remove the binary at %s: %v\n", targetBinary, err)
 		} else {
-			fmt.Printf("[✓] Biner berhasil dihapus: %s\n", targetBinary)
+			fmt.Printf("[✓] Binary removed: %s\n", targetBinary)
 			removedAny = true
 		}
 	}
@@ -254,47 +209,51 @@ func RunUninstall(purgeData bool) error {
 	if runtime.GOOS != "windows" {
 		sysBin := filepath.Join("/usr/local/bin", binName)
 		if _, err := os.Stat(sysBin); err == nil {
-			fmt.Printf("[i] Ditemukan juga biner sistem di %s. Jalankan 'sudo rm %s' jika ingin menghapusnya.\n", sysBin, sysBin)
+			fmt.Printf("[i] A system binary also exists at %s. Run 'sudo rm %s' to remove it.\n", sysBin, sysBin)
 		}
 	}
 
 	if purgeData {
-		configDir, _ := os.UserConfigDir()
-		cacheDir, _ := os.UserCacheDir()
-
-		keryConfig := filepath.Join(configDir, "kerykeion")
-		keryCache := filepath.Join(cacheDir, "kerykeion")
-
-		if _, err := os.Stat(keryConfig); err == nil {
-			_ = os.RemoveAll(keryConfig)
-			fmt.Printf("[✓] Direktori konfigurasi dan riwayat dihapus: %s\n", keryConfig)
-		}
-		if _, err := os.Stat(keryCache); err == nil {
-			_ = os.RemoveAll(keryCache)
-			fmt.Printf("[✓] Direktori cache dan unduhan dihapus: %s\n", keryCache)
-		}
-
-		// Also check leftover legacy directories
-		legacyConfig := filepath.Join(configDir, "kantorchat")
-		legacyCache := filepath.Join(cacheDir, "kantorchat")
-		if _, err := os.Stat(legacyConfig); err == nil {
-			_ = os.RemoveAll(legacyConfig)
-			fmt.Printf("[✓] Direktori konfigurasi lama (kantorchat) dibersihkan: %s\n", legacyConfig)
-		}
-		if _, err := os.Stat(legacyCache); err == nil {
-			_ = os.RemoveAll(legacyCache)
-			fmt.Printf("[✓] Direktori cache lama (kantorchat) dibersihkan: %s\n", legacyCache)
-		}
+		purgeLocalData()
 	} else {
-		fmt.Println("[i] Data riwayat dan konfigurasi dipertahankan. Gunakan 'kerxt uninstall --purge' bila ingin menghapus seluruh data.")
+		fmt.Println("[i] History and configuration were kept. Use 'kerxt uninstall --purge' to remove all application data, including downloads.")
 	}
 
 	if removedAny {
-		fmt.Println("[✓] Proses penghapusan selesai.")
+		fmt.Println("[✓] Uninstallation complete.")
 	} else {
-		fmt.Println("[i] Tidak ditemukan biner aktif di lokasi default.")
+		fmt.Println("[i] No installed binary found at the default location.")
 	}
 	return nil
+}
+
+func purgeLocalData() {
+	configDir, _ := os.UserConfigDir()
+	cacheDir, _ := os.UserCacheDir()
+
+	keryConfig := filepath.Join(configDir, "kerykeion")
+	keryCache := filepath.Join(cacheDir, "kerykeion")
+
+	if _, err := os.Stat(keryConfig); err == nil {
+		_ = os.RemoveAll(keryConfig)
+		fmt.Printf("[✓] Configuration and history directory removed: %s\n", keryConfig)
+	}
+	if _, err := os.Stat(keryCache); err == nil {
+		_ = os.RemoveAll(keryCache)
+		fmt.Printf("[✓] Cache and downloads directory removed: %s\n", keryCache)
+	}
+
+	// Also check leftover legacy directories
+	legacyConfig := filepath.Join(configDir, "kantorchat")
+	legacyCache := filepath.Join(cacheDir, "kantorchat")
+	if _, err := os.Stat(legacyConfig); err == nil {
+		_ = os.RemoveAll(legacyConfig)
+		fmt.Printf("[✓] Legacy configuration directory (kantorchat) removed: %s\n", legacyConfig)
+	}
+	if _, err := os.Stat(legacyCache); err == nil {
+		_ = os.RemoveAll(legacyCache)
+		fmt.Printf("[✓] Legacy cache directory (kantorchat) removed: %s\n", legacyCache)
+	}
 }
 
 func ensurePathConfigured(info *SystemInfo, installDir string) {
@@ -304,12 +263,12 @@ func ensurePathConfigured(info *SystemInfo, installDir string) {
 
 	for _, p := range paths {
 		if filepath.Clean(p) == cleanInstallDir {
-			fmt.Printf("[✓] Status PATH: %s sudah terdaftar di PATH.\n", installDir)
+			fmt.Printf("[✓] PATH: %s is already included.\n", installDir)
 			return
 		}
 	}
 
-	fmt.Printf("[!] Direktori %s belum terdaftar di variabel PATH.\n", installDir)
+	fmt.Printf("[!] Directory %s is not in PATH.\n", installDir)
 	if info.ShellConfigFile == "" {
 		return
 	}
@@ -326,7 +285,7 @@ func ensurePathConfigured(info *SystemInfo, installDir string) {
 	// Read existing config to avoid duplicate additions
 	existing, _ := os.ReadFile(info.ShellConfigFile)
 	if strings.Contains(string(existing), installDir) {
-		fmt.Printf("[i] Konfigurasi PATH sudah ada di %s. Muat ulang terminal dengan 'source %s'.\n", info.ShellConfigFile, info.ShellConfigFile)
+		fmt.Printf("[i] PATH configuration already exists in %s. Reload it with 'source %s'.\n", info.ShellConfigFile, info.ShellConfigFile)
 		return
 	}
 
@@ -334,17 +293,17 @@ func ensurePathConfigured(info *SystemInfo, installDir string) {
 	if err == nil {
 		defer f.Close()
 		_, _ = f.WriteString(appendLine)
-		fmt.Printf("[✓] Berhasil menambahkan PATH ke file konfigurasi shell: %s\n", info.ShellConfigFile)
-		fmt.Printf("[i] Jalankan 'source %s' atau buka terminal baru agar aktif.\n", info.ShellConfigFile)
+		fmt.Printf("[✓] PATH entry added to the shell configuration: %s\n", info.ShellConfigFile)
+		fmt.Printf("[i] Run 'source %s' or open a new terminal to apply it.\n", info.ShellConfigFile)
 	} else {
-		fmt.Printf("[i] Tambahkan baris ini ke file konfigurasi shell (%s):\n", info.ShellConfigFile)
+		fmt.Printf("[i] Add this line to your shell configuration (%s):\n", info.ShellConfigFile)
 		fmt.Printf("    export PATH=\"%s:$PATH\"\n", installDir)
 	}
 }
 
 func printGoInstallRecommendation(info *SystemInfo) {
 	fmt.Println()
-	fmt.Println("Untuk memasang Go compiler di sistem kamu:")
+	fmt.Println("To install the Go compiler on your system:")
 	switch info.PackageManager {
 	case "pacman", "yay", "paru":
 		fmt.Println("  sudo pacman -S go git")
@@ -355,7 +314,7 @@ func printGoInstallRecommendation(info *SystemInfo) {
 	case "brew":
 		fmt.Println("  brew install go git")
 	default:
-		fmt.Println("  Kunjungi https://go.dev/dl/ untuk mengunduh Go.")
+		fmt.Println("  Download Go from https://go.dev/dl/")
 	}
 	fmt.Println()
 }

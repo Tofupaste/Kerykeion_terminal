@@ -225,48 +225,11 @@ func (s *Service) deliverWithAck(pkt protocol.MsgPayload, targetPeerID string) {
 		s.pendingAcksMu.Unlock()
 	}()
 
-	sent := false
-	if s.transport.IsConnected(targetPeerID) {
-		if err := s.transport.SendToPeer(targetPeerID, protocol.TypeMsg, payloadBytes); err == nil {
-			sent = true
-			_ = s.store.UpdateMessageStatus(pkt.MsgID, "sent")
-			if s.onStatusChange != nil {
-				s.onStatusChange(pkt.MsgID, "sent")
-			}
-		}
-	}
-
-	if !sent {
-		var targetIP string
-		var targetPort int
-		if peerInfo, ok := s.discovery.GetPeer(targetPeerID); ok && peerInfo.IsOnline {
-			targetIP = peerInfo.IP
-			targetPort = peerInfo.Port
-		} else if pRec, err := s.store.GetPeer(targetPeerID); err == nil && pRec != nil {
-			targetIP = pRec.LastIP
-			targetPort = pRec.LastPort
-		}
-
-		if targetIP != "" && targetPort != 0 {
-			if conn, err := s.transport.DialPeer(targetPeerID, targetIP, targetPort, "chat"); err == nil {
-				if err := conn.WriteFrame(protocol.TypeMsg, payloadBytes); err == nil {
-					sent = true
-					_ = s.store.UpdateMessageStatus(pkt.MsgID, "sent")
-					if s.onStatusChange != nil {
-						s.onStatusChange(pkt.MsgID, "sent")
-					}
-				}
-			}
-		}
-	}
-
-	if sent {
+	if s.sendPayload(targetPeerID, payloadBytes) {
+		s.updateStatus(pkt.MsgID, "sent")
 		select {
 		case <-ackCh:
-			_ = s.store.UpdateMessageStatus(pkt.MsgID, "delivered")
-			if s.onStatusChange != nil {
-				s.onStatusChange(pkt.MsgID, "delivered")
-			}
+			s.updateStatus(pkt.MsgID, "delivered")
 			_ = s.store.RemoveFromOutbox(pkt.MsgID, targetPeerID)
 			return
 		case <-time.After(3 * time.Second):
@@ -280,6 +243,35 @@ func (s *Service) deliverWithAck(pkt protocol.MsgPayload, targetPeerID string) {
 		NextRetryAt:  time.Now().Add(1 * time.Second),
 		ExpiresAt:    time.Now().Add(7 * 24 * time.Hour),
 	})
+}
+
+func (s *Service) sendPayload(peerID string, payload []byte) bool {
+	if s.transport.IsConnected(peerID) && s.transport.SendToPeer(peerID, protocol.TypeMsg, payload) == nil {
+		return true
+	}
+	ip, port := s.peerAddress(peerID)
+	if ip == "" || port == 0 {
+		return false
+	}
+	conn, err := s.transport.DialPeer(peerID, ip, port, "chat")
+	return err == nil && conn.WriteFrame(protocol.TypeMsg, payload) == nil
+}
+
+func (s *Service) peerAddress(peerID string) (string, int) {
+	if peer, ok := s.discovery.GetPeer(peerID); ok && peer.IsOnline {
+		return peer.IP, peer.Port
+	}
+	if peer, err := s.store.GetPeer(peerID); err == nil && peer != nil {
+		return peer.LastIP, peer.LastPort
+	}
+	return "", 0
+}
+
+func (s *Service) updateStatus(msgID, status string) {
+	_ = s.store.UpdateMessageStatus(msgID, status)
+	if s.onStatusChange != nil {
+		s.onStatusChange(msgID, status)
+	}
 }
 
 func (s *Service) HandleIncomingMsg(payload []byte, fromPeerID string) {
@@ -353,10 +345,7 @@ func (s *Service) HandleIncomingMsgAck(payload []byte) {
 	}
 	s.pendingAcksMu.Unlock()
 
-	_ = s.store.UpdateMessageStatus(ack.MsgID, "delivered")
-	if s.onStatusChange != nil {
-		s.onStatusChange(ack.MsgID, "delivered")
-	}
+	s.updateStatus(ack.MsgID, "delivered")
 }
 
 func (s *Service) TriggerPeerRetry(peerID string) {

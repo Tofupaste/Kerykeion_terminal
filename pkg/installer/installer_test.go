@@ -51,3 +51,43 @@ func TestDefaultInstallDir(t *testing.T) {
 		t.Errorf("expected default install dir not to be empty")
 	}
 }
+
+func TestUninstallPreservesDataUnlessPurged(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root)
+	t.Setenv("USERPROFILE", root)
+	t.Setenv("LOCALAPPDATA", filepath.Join(root, "local"))
+	t.Setenv("APPDATA", filepath.Join(root, "config"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(root, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(root, "cache"))
+	configRoot, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	configPath, cachePath := filepath.Join(configRoot, "kerykeion"), filepath.Join(cacheRoot, "kerykeion")
+	for _, path := range []string{configPath, cachePath} {
+		if err := os.MkdirAll(path, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := RunUninstall(false); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{configPath, cachePath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("non-purge uninstall removed data: %v", err)
+		}
+	}
+	if err := RunUninstall(true); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{configPath, cachePath} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("purged directory still exists: %s", path)
+		}
+	}
+}

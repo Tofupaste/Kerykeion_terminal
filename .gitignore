@@ -6,6 +6,11 @@
 /kantorchat.exe
 /kantorchat-*
 *.exe
+/build/
+/dist/
+*.test
+*.out
+*.install.tmp
 
 # Test and local data
 downloads/
@@ -15,6 +20,18 @@ cache/
 *.db-shm
 *.key
 .partial/
+/config.json
+*.log
+*.pid
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.p12
+*.pfx
 
 # OS specific
 .DS_Store

@@ -69,7 +69,11 @@ func TestDatabaseOperationsAndPruning(t *testing.T) {
 		t.Errorf("tombstone for proyek-x gen 99999 should not exist")
 	}
 
-	// 5. 30-Day Retention Pruning
+	checkRetentionPruning(t, store)
+}
+
+func checkRetentionPruning(t *testing.T, store *Store) {
+	t.Helper()
 	oldMsg := MessageRecord{
 		MsgID:          "0192b450-7000-7000-8000-000000000002",
 		ConversationID: "ngobs",

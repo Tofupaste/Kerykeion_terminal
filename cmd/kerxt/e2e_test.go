@@ -123,11 +123,7 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 
 	bobDoneCh := make(chan string, 1)
 	tferBob := transfer.New(cfgBob, idBob, dbBob, discBob, transBob,
-		func(p transfer.TransferProgress) {
-			if p.IsCompleted && p.IsDownload {
-				bobDoneCh <- p.FileID
-			}
-		},
+		downloadCompletion(bobDoneCh),
 		nil,
 	)
 	tferBob.Start()
@@ -168,6 +164,41 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 	defer connAliceToBob.Close()
 	time.Sleep(100 * time.Millisecond)
 
+	_ = rMgrBob
+	checks := e2eChecks{
+		aliceID: idAlice, bobID: idBob, messages: msgAlice, rooms: rMgrAlice, transfers: tferAlice,
+		bobMessages: bobReceivedMsg, delivered: aliceDeliveredStatus, downloaded: bobDoneCh,
+		aliceDir: tempDirAlice, bobConfig: cfgBob,
+	}
+	checkDirectMessage(t, checks)
+	checkRoomCreation(t, checks)
+	checkFileTransfer(t, checks)
+}
+
+func downloadCompletion(completed chan<- string) transfer.ProgressCallback {
+	return func(progress transfer.TransferProgress) {
+		if progress.IsCompleted && progress.IsDownload {
+			completed <- progress.FileID
+		}
+	}
+}
+
+type e2eChecks struct {
+	aliceID, bobID *identity.Manager
+	messages       *messaging.Service
+	rooms          *room.Manager
+	transfers      *transfer.Manager
+	bobMessages    <-chan db.MessageRecord
+	delivered      <-chan string
+	downloaded     <-chan string
+	aliceDir       string
+	bobConfig      *config.Config
+}
+
+func checkDirectMessage(t *testing.T, checks e2eChecks) {
+	t.Helper()
+	idAlice, idBob, msgAlice := checks.aliceID, checks.bobID, checks.messages
+	bobReceivedMsg, aliceDeliveredStatus := checks.bobMessages, checks.delivered
 	// 1. Test DM send Alice -> Bob
 	dmText := "Halo Bob dari Alice via Kerykeion Terminal P2P!"
 	msgRec, err := msgAlice.SendDM(idBob.PeerID(), dmText)
@@ -196,6 +227,11 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 		t.Fatalf("Alice timed out waiting for delivered ACK")
 	}
 
+}
+
+func checkRoomCreation(t *testing.T, checks e2eChecks) {
+	t.Helper()
+	rMgrAlice, idAlice := checks.rooms, checks.aliceID
 	// 2. Test Room Creation & Management
 	roomRec, err := rMgrAlice.CreateRoom("ngobs-e2e")
 	if err != nil {
@@ -205,8 +241,12 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 		t.Errorf("Alice should be master of created room")
 	}
 
-	_ = rMgrBob
+}
 
+func checkFileTransfer(t *testing.T, checks e2eChecks) {
+	t.Helper()
+	tempDirAlice, tferAlice, idBob := checks.aliceDir, checks.transfers, checks.bobID
+	bobDoneCh, cfgBob := checks.downloaded, checks.bobConfig
 	// 3. Test File Transfer Alice -> Bob
 	testFile := filepath.Join(tempDirAlice, "testdoc.txt")
 	testContent := []byte("Isi berkas penting rahasia kantor P2P transfer test.")

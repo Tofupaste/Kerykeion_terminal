@@ -24,17 +24,17 @@ type PeerInfo struct {
 }
 
 type Discovery struct {
-	idMgr       *identity.Manager
-	udpPort     int
-	officeKey   string
-	conn        *net.UDPConn
-	seqCounter  atomic.Uint64
-	peersMu     sync.RWMutex
-	peers       map[string]*PeerInfo
-	peerSeqs    map[string]uint64
-	cancelCtx   context.CancelFunc
-	ctx         context.Context
-	wg          sync.WaitGroup
+	idMgr      *identity.Manager
+	udpPort    int
+	officeKey  string
+	conn       *net.UDPConn
+	seqCounter atomic.Uint64
+	peersMu    sync.RWMutex
+	peers      map[string]*PeerInfo
+	peerSeqs   map[string]uint64
+	cancelCtx  context.CancelFunc
+	ctx        context.Context
+	wg         sync.WaitGroup
 
 	onPeerDiscovered func(p PeerInfo)
 	onPeerUpdated    func(p PeerInfo)
@@ -289,26 +289,24 @@ func (d *Discovery) calculateBroadcastTargets() []*net.UDPAddr {
 		if err != nil {
 			continue
 		}
-		for _, addr := range addrs {
-			ipnet, ok := addr.(*net.IPNet)
-			if !ok || ipnet.IP.To4() == nil {
-				continue
-			}
-			ip4 := ipnet.IP.To4()
-			mask := ipnet.Mask
-			if len(mask) == 4 {
-				bcast := net.IPv4(
-					ip4[0]|^mask[0],
-					ip4[1]|^mask[1],
-					ip4[2]|^mask[2],
-					ip4[3]|^mask[3],
-				)
-				targets = append(targets, &net.UDPAddr{IP: bcast, Port: d.udpPort})
-			}
-		}
+		targets = append(targets, broadcastAddresses(addrs, d.udpPort)...)
 	}
 
 	targets = append(targets, &net.UDPAddr{IP: net.IPv4(239, 255, 42, 101), Port: d.udpPort})
+	return targets
+}
+
+func broadcastAddresses(addrs []net.Addr, port int) []*net.UDPAddr {
+	var targets []*net.UDPAddr
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok || ipnet.IP.To4() == nil || len(ipnet.Mask) != 4 {
+			continue
+		}
+		ip, mask := ipnet.IP.To4(), ipnet.Mask
+		broadcast := net.IPv4(ip[0]|^mask[0], ip[1]|^mask[1], ip[2]|^mask[2], ip[3]|^mask[3])
+		targets = append(targets, &net.UDPAddr{IP: broadcast, Port: port})
+	}
 	return targets
 }
 
@@ -367,27 +365,35 @@ func (d *Discovery) handleIncomingPacket(data []byte, remoteAddr *net.UDPAddr) {
 	}
 }
 
-func (d *Discovery) handleAnnounce(pkt protocol.AnnouncePacket, remoteAddr *net.UDPAddr) {
+func (d *Discovery) announcePeerID(pkt protocol.AnnouncePacket) (string, bool) {
 	if d.officeKey != "" && pkt.OfficeKey != d.officeKey {
-		return
+		return "", false
 	}
 
 	now := time.Now().Unix()
 	if pkt.Timestamp < now-60 || pkt.Timestamp > now+60 {
-		return
+		return "", false
 	}
 
 	if !identity.VerifyBase64(pkt.PubKey, pkt.SigBytes(), pkt.Sig) {
-		return
+		return "", false
 	}
 
 	pubBytes, err := identity.DecodeBase64PubKey(pkt.PubKey)
 	if err != nil {
-		return
+		return "", false
 	}
 
 	senderPeerID := identity.Fingerprint(pubBytes)
 	if senderPeerID == d.idMgr.PeerID() {
+		return "", false
+	}
+	return senderPeerID, true
+}
+
+func (d *Discovery) handleAnnounce(pkt protocol.AnnouncePacket, remoteAddr *net.UDPAddr) {
+	senderPeerID, valid := d.announcePeerID(pkt)
+	if !valid {
 		return
 	}
 

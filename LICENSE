@@ -1,0 +1,107 @@
+Kerykeion Personal, Educational, and Internal Use License
+Version 1.0, 22 October 2026
+
+This is a custom source-available license. It is not an OSI-approved
+open-source license.
+
+1. Scope and ownership
+
+"Covered Software" means the Kerykeion Terminal source code, documentation,
+and compiled application made available under this license, including
+modifications to that material. It excludes third-party components that
+carry their own licenses.
+
+"Licensor" means each copyright holder offering their contribution to the
+Covered Software under these terms. Copyright holders retain ownership of
+their contributions.
+
+2. Permission
+
+Subject to these terms, the Licensor grants you a non-exclusive, worldwide,
+royalty-free copyright license to use, copy, study, and modify the Covered
+Software for the following purposes:
+
+(a) Personal, noncommercial use, including private communication, learning,
+    experimentation, and hobby projects.
+
+(b) Noncommercial education and research, including classroom instruction,
+    student projects, and academic experiments. This does not include
+    selling the Covered Software or charging for access to it.
+
+(c) Internal use by an organization, including a commercial business or
+    office. Employees and contractors may use and modify the Covered
+    Software on the organization's behalf for its internal operations.
+    The organization may earn revenue from its business activities while
+    using the Covered Software internally. It may not sell the Covered
+    Software or provide it as a product or hosted service to customers.
+
+For clarity, an office may use Kerykeion Terminal for internal chat and
+file transfers without paying a license fee, even if that office belongs
+to a for-profit business.
+
+3. Free redistribution
+
+You may redistribute original or modified copies of the Covered Software,
+in source or compiled form, without charge, provided that you:
+
+(a) Include this license and retain existing copyright, attribution, and
+    third-party license notices.
+
+(b) Identify modifications you have made and do not represent your modified
+    version as an official release from the original project.
+
+(c) Keep the Covered Software subject to these terms. Recipients receive
+    their permissions for the original material from its Licensors under
+    this license; you may not replace these terms with broader permissions
+    for material you do not own.
+
+(d) Do not impose a fee for the copy, download, license, or access, or make
+    receipt of the Covered Software conditional on a purchase.
+
+4. Restrictions
+
+Except with separate written permission from the relevant copyright holders,
+you may not:
+
+(a) Sell, rent, commercially sublicense, or otherwise charge for the Covered
+    Software, whether original or modified, in source or compiled form.
+
+(b) Offer paid access to the Covered Software through a hosted service,
+    subscription, or other paid application service.
+
+(c) Bundle the Covered Software into a paid software product or distribute
+    it as a paid white-label or rebranded application.
+
+(d) Use the Covered Software for purposes outside Section 2, except for
+    free redistribution expressly permitted by Section 3.
+
+The internal business use permitted by Section 2(c) is not prohibited
+merely because the organization operates commercially. Internal use does
+not include offering the Covered Software to external customers as part
+of the organization's product or service.
+
+These restrictions apply to the Covered Software and modifications to it.
+They do not change the separate licenses of third-party dependencies.
+
+5. Other rights
+
+This license does not grant rights to project names, logos, or trademarks,
+except as necessary to preserve attribution notices. It does not claim
+ownership of messages, files, or other content you create or transmit using
+the Covered Software. Rights and exceptions provided by applicable law
+remain unaffected. No rights are granted beyond those expressly stated.
+
+6. Termination
+
+The permissions granted by this license terminate if you violate its terms.
+After termination, you must stop activities that require those permissions
+unless the relevant Licensor separately authorizes them in writing.
+
+7. No warranty or liability
+
+To the extent permitted by applicable law, the Covered Software is provided
+"AS IS", without warranties or conditions of any kind, express or implied,
+including merchantability, fitness for a particular purpose, title, and
+noninfringement. No Licensor or contributor is liable for claims, damages,
+or other liability arising from the Covered Software or its use, whether
+in contract, tort, or otherwise.

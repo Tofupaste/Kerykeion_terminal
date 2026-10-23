@@ -15,6 +15,11 @@ type CommandHelp struct {
 }
 
 var CommandCatalog = map[string]CommandHelp{
+	"lang": {
+		Command: "/lang", Summary: "Ganti bahasa Indonesia atau English (tersimpan)",
+		Usage: "/lang <id|en>", Description: "Mengganti bahasa antarmuka dan menyimpan pilihan. F2 juga mengganti bahasa.",
+		Example: "/lang en", CommonError: "Pilihan bahasa: id atau en.",
+	},
 	"help": {
 		Command:     "/help",
 		Summary:     "Bantuan penggunaan perintah",
@@ -99,8 +104,8 @@ var CommandCatalog = map[string]CommandHelp{
 		Command:     "/send",
 		Summary:     "Kirim file atau gambar ke percakapan aktif",
 		Usage:       "/send <path_file>",
-		Description: "Mengirim file ke DM atau mengumumkan file ke room dengan dukungan resume otomatis jika koneksi putus.",
-		Example:     "/send /home/user/dokumen.pdf",
+		Description: "Langsung mengirim file ke DM atau menyiapkan pengumuman room. Path boleh mengandung spasi dan diapit kutip. ~/ dimulai dari home; path relatif dimulai dari direktori saat kerxt dijalankan. Di TUI, fokuskan chat lalu Ctrl+O untuk memilih dan mengonfirmasi file.",
+		Example:     `/send "~/Downloads/catatan proyek.pdf"`,
 		CommonError: "File tidak ditemukan pada path yang diberikan.",
 	},
 	"get": {
@@ -251,7 +256,8 @@ func FormatQuickHelp() string {
 	sb.WriteString("  /disband [nama_room]            Bubarkan room permanen (khusus master)\n\n")
 
 	sb.WriteString("Kirim Berkas & Media:\n")
-	sb.WriteString("  /send <path_file>               Kirim berkas/foto/video (resume otomatis)\n")
+	sb.WriteString("  /send <path_file>               Kirim file langsung; path boleh mengandung spasi\n")
+	sb.WriteString("  Ctrl+O (TUI, fokus chat)         Pilih file, lalu Enter untuk konfirmasi kirim\n")
 	sb.WriteString("  /get <nomor>                    Unduh berkas dari pengumuman room\n")
 	sb.WriteString("  /open <nomor>                   Buka tautan web yang diterima di browser\n")
 	sb.WriteString("  /export                         Simpan riwayat percakapan ke file teks\n\n")

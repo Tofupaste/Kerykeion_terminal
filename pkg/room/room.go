@@ -461,23 +461,22 @@ func (m *Manager) HandleRoomClosed(payload []byte) {
 	}
 
 	rec, err := m.store.GetRoom(pkt.Name)
-	if err == nil && rec != nil && rec.Gen == pkt.Gen {
-		if rec.MasterID == pkt.MasterID {
-			_ = m.store.AddTombstone(pkt.Name, pkt.Gen)
-			rec.State = "disbanded"
-			_ = m.store.UpsertRoom(*rec)
+	if err != nil || rec == nil || rec.Gen != pkt.Gen || rec.MasterID != pkt.MasterID {
+		return
+	}
+	_ = m.store.AddTombstone(pkt.Name, pkt.Gen)
+	rec.State = "disbanded"
+	_ = m.store.UpsertRoom(*rec)
 
-			members, _ := m.store.GetRoomMembers(pkt.Name)
-			for _, mID := range members {
-				if mID != m.idMgr.PeerID() && mID != pkt.MasterID {
-					_ = m.transport.SendToPeer(mID, protocol.TypeRoomClosed, payload)
-				}
-			}
-
-			if m.onEvent != nil {
-				m.onEvent("ROOM_DISBANDED", pkt.Name, "Room dibubarkan oleh master")
-			}
+	members, _ := m.store.GetRoomMembers(pkt.Name)
+	for _, mID := range members {
+		if mID != m.idMgr.PeerID() && mID != pkt.MasterID {
+			_ = m.transport.SendToPeer(mID, protocol.TypeRoomClosed, payload)
 		}
+	}
+
+	if m.onEvent != nil {
+		m.onEvent("ROOM_DISBANDED", pkt.Name, "Room dibubarkan oleh master")
 	}
 }
 

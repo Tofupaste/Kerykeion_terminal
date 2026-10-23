@@ -1,22 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"net"
 	"os"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"kerykeion/pkg/config"
 	"kerykeion/pkg/db"
 	"kerykeion/pkg/discovery"
-	"kerykeion/pkg/doctor"
 	"kerykeion/pkg/identity"
-	"kerykeion/pkg/installer"
 	"kerykeion/pkg/messaging"
-	"kerykeion/pkg/protocol"
 	"kerykeion/pkg/room"
 	"kerykeion/pkg/transfer"
 	"kerykeion/pkg/transport"
@@ -25,12 +19,12 @@ import (
 
 func main() {
 	var (
-		customDir   string
-		customName  string
-		tcpPort     int
-		udpPort     int
-		forceREPL   bool
-		debugMode   bool
+		customDir  string
+		customName string
+		tcpPort    int
+		udpPort    int
+		forceREPL  bool
+		debugMode  bool
 	)
 
 	flag.StringVar(&customDir, "config", "", "Direktori konfigurasi kustom")
@@ -53,61 +47,16 @@ func main() {
 
 	flag.Parse()
 
-	args := flag.Args()
-	initialRoom := ""
-
-	if len(args) > 0 {
-		switch strings.ToLower(args[0]) {
-		case "install":
-			targetDir := ""
-			if len(args) > 1 {
-				targetDir = args[1]
-			}
-			err := installer.RunInstall(installer.InstallOptions{
-				TargetDir: targetDir,
-			})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Galat saat instalasi: %v\n", err)
-				os.Exit(1)
-			}
-			return
-
-		case "uninstall":
-			purge := false
-			for _, a := range args[1:] {
-				if a == "--purge" || a == "-purge" {
-					purge = true
-				}
-			}
-			err := installer.RunUninstall(purge)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Galat saat uninstall: %v\n", err)
-				os.Exit(1)
-			}
-			return
-
-		case "doctor":
-			cfg, err := config.LoadConfig(customDir)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Galat memuat konfigurasi: %v\n", err)
-				os.Exit(1)
-			}
-			report := doctor.RunDiagnostics(cfg, nil)
-			fmt.Println(doctor.FormatReport(report))
-			return
-
-		case "join":
-			for _, a := range args[1:] {
-				if a == "--repl" || a == "-repl" {
-					forceREPL = true
-				} else if a == "--debug" || a == "-debug" {
-					debugMode = true
-				} else if !strings.HasPrefix(a, "-") && initialRoom == "" {
-					initialRoom = a
-				}
-			}
-		}
+	options, err := runStartupCommand(flag.Args(), customDir, startupOptions{repl: forceREPL, debug: debugMode})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
 	}
+	if options.handled {
+		return
+	}
+	initialRoom := options.initialRoom
+	forceREPL = options.repl
 
 	cfg, err := config.LoadConfig(customDir)
 	if err != nil {
@@ -125,30 +74,7 @@ func main() {
 		cfg.DisplayName = customName
 	}
 
-	// First run wizard if display name is empty
-	if cfg.DisplayName == "" {
-		fmt.Println("==================================================")
-		fmt.Println("     Selamat Datang di Kerykeion Terminal (P2P)   ")
-		fmt.Println("==================================================")
-		fmt.Println("Aplikasi chat & file sharing langsung antar-laptop")
-		fmt.Println("tanpa internet dan tanpa server pusat.")
-		fmt.Println()
-		fmt.Print("Masukkan nama tampilan kamu: ")
-		reader := bufio.NewReader(os.Stdin)
-		inputName, _ := reader.ReadString('\n')
-		inputName = strings.TrimSpace(inputName)
-		if inputName == "" {
-			inputName = "anon"
-		}
-		cfg.DisplayName = inputName
-		_ = cfg.Save()
-		fmt.Printf("\nNama kamu disetel sebagai: %s\n", inputName)
-		fmt.Println("Panduan Cepat:")
-		fmt.Println(" 1. Ketik /who untuk melihat siapa saja yang online di WiFi.")
-		fmt.Println(" 2. Ketik /join <nama_room> untuk mengobrol bersama.")
-		fmt.Println(" 3. Ketik /send <file> untuk mengirim berkas.")
-		fmt.Println("--------------------------------------------------")
-	}
+	runFirstRunWizard(cfg)
 
 	idMgr, err := identity.LoadOrCreate(cfg.ConfigDir, cfg.DisplayName)
 	if err != nil {
@@ -180,143 +106,42 @@ func main() {
 
 	disc := discovery.New(idMgr, cfg.UDPPort, cfg.OfficeKey)
 
-	var (
-		tuiProgram *tea.Program
-		replApp    *ui.REPL
-	)
+	events := &uiEvents{}
 
-	onNewMessage := func(m db.MessageRecord, isSelf bool) {
-		if tuiProgram != nil {
-			tuiProgram.Send(ui.MsgNewMessage(m))
-		}
-		if replApp != nil {
-			replApp.OnNewMessage(m, isSelf)
-		}
-	}
-
-	onStatusChange := func(msgID, status string) {
-		if tuiProgram != nil {
-			tuiProgram.Send(ui.MsgStatusChange{MsgID: msgID, Status: status})
-		}
-	}
-
-	onProgress := func(p transfer.TransferProgress) {
-		if tuiProgram != nil {
-			tuiProgram.Send(ui.MsgProgress(p))
-		}
-	}
-
-	onAnnounce := func(a protocol.FileAnnouncePayload) {
-		if tuiProgram != nil {
-			tuiProgram.Send(ui.MsgAnnounce(a))
-		}
-	}
-
-	onRoomEvent := func(evt, rName, detail string) {
-		if tuiProgram != nil {
-			tuiProgram.Send(ui.MsgRoomEvent{Event: evt, Room: rName, Detail: detail})
-		}
-		if replApp != nil {
-			replApp.Printf("[%s] #%s: %s\n", evt, rName, detail)
-		}
-	}
-
-	msgSvc := messaging.New(idMgr, store, transMgr, disc, onNewMessage, onStatusChange)
+	msgSvc := messaging.New(idMgr, store, transMgr, disc, events.onMessage, events.onStatus)
 	msgSvc.Start()
 	defer msgSvc.Stop()
 
-	roomMgr := room.New(idMgr, store, disc, transMgr, onRoomEvent)
+	roomMgr := room.New(idMgr, store, disc, transMgr, events.onRoomEvent)
 	defer roomMgr.Stop()
 
-	tferMgr := transfer.New(cfg, idMgr, store, disc, transMgr, onProgress, onAnnounce)
+	tferMgr := transfer.New(cfg, idMgr, store, disc, transMgr, events.onProgress, events.onAnnounce)
 	tferMgr.Start()
 	defer tferMgr.Stop()
 
-	transMgr.SetFrameHandler(func(connID string, frameType byte, payload []byte, remotePeerID string) {
-		switch frameType {
-		case protocol.TypeMsg:
-			msgSvc.HandleIncomingMsg(payload, remotePeerID)
-		case protocol.TypeMsgAck:
-			msgSvc.HandleIncomingMsgAck(payload)
-		case protocol.TypeRoomJoin:
-			roomMgr.HandleRoomJoin(payload)
-		case protocol.TypeRoomLeave:
-			roomMgr.HandleRoomLeave(payload)
-		case protocol.TypeRoomClosed:
-			roomMgr.HandleRoomClosed(payload)
-		case protocol.TypeRoomTransfer:
-			roomMgr.HandleRoomTransfer(payload)
-		case protocol.TypeRoomSyncReq:
-			roomMgr.HandleRoomSyncReq(payload, remotePeerID)
-		case protocol.TypeRoomSyncRes:
-			roomMgr.HandleRoomSyncRes(payload)
-		case protocol.TypeFileOffer:
-			tferMgr.HandleFileOffer(connID, payload, remotePeerID)
-		case protocol.TypeFileAccept:
-			tferMgr.HandleFileAccept(payload)
-		case protocol.TypeChunk:
-			tferMgr.HandleChunk(connID, payload, remotePeerID)
-		case protocol.TypeFileDone:
-			tferMgr.HandleFileDone(payload)
-		case protocol.TypeFileAnnounce:
-			tferMgr.HandleFileAnnounce(payload)
-		case protocol.TypeFileWhoHas:
-			tferMgr.HandleFileWhoHas(payload, remotePeerID)
-		case protocol.TypeFileHave:
-			tferMgr.HandleFileHave(payload)
-		}
-	})
+	dispatcher := frameDispatcher{messages: msgSvc, rooms: roomMgr, transfers: tferMgr}
+	transMgr.SetFrameHandler(dispatcher.handle)
 
-	disc.SetCallbacks(
-		func(p discovery.PeerInfo) {
-			_ = store.UpsertPeer(db.PeerRecord{
-				PeerID:      p.PeerID,
-				DisplayName: p.DisplayName,
-				PubKey:      p.PubKey,
-				LastIP:      p.IP,
-				LastPort:    p.Port,
-				LastSeen:    p.LastSeen,
-				Trusted:     true,
-			})
-			msgSvc.TriggerPeerRetry(p.PeerID)
-			if tuiProgram != nil {
-				tuiProgram.Send(ui.MsgPeerDiscovered(p))
-			}
-		},
-		func(p discovery.PeerInfo) {
-			_ = store.UpsertPeer(db.PeerRecord{
-				PeerID:      p.PeerID,
-				DisplayName: p.DisplayName,
-				PubKey:      p.PubKey,
-				LastIP:      p.IP,
-				LastPort:    p.Port,
-				LastSeen:    p.LastSeen,
-				Trusted:     true,
-			})
-			msgSvc.TriggerPeerRetry(p.PeerID)
-			if tuiProgram != nil {
-				tuiProgram.Send(ui.MsgPeerUpdated(p))
-			}
-		},
-		func(q protocol.RoomQueryPacket, addr *net.UDPAddr) {
-			roomMgr.HandleRoomQuery(q, cfg.TCPPort)
-		},
-		func(h protocol.RoomHerePacket, addr *net.UDPAddr) {
-			roomMgr.HandleRoomHere(h)
-		},
-	)
+	peers := peerCallbacks{config: cfg, store: store, messaging: msgSvc, rooms: roomMgr, events: events}
+	disc.SetCallbacks(peers.discovered, peers.updated, peers.roomQuery, peers.roomHere)
 
 	if err := disc.Start(cfg.TCPPort); err != nil {
 		fmt.Fprintf(os.Stderr, "Peringatan UDP discovery (port %d): %v\n", cfg.UDPPort, err)
 	}
 	defer disc.Stop()
 
+	services := ui.Services{
+		Config: cfg, Identity: idMgr, Store: store, Discovery: disc,
+		Messaging: msgSvc, Rooms: roomMgr, Transfers: tferMgr,
+	}
 	if forceREPL {
-		replApp = ui.NewREPL(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr, os.Stdin, os.Stdout, initialRoom)
+		replApp := ui.NewREPL(services, os.Stdin, os.Stdout, initialRoom)
+		events.setREPL(replApp)
 		replApp.Run()
 	} else {
-		appModel := ui.NewTUI(cfg, idMgr, store, disc, msgSvc, roomMgr, tferMgr, initialRoom)
-		tuiProgram = tea.NewProgram(appModel, tea.WithAltScreen())
+		appModel := ui.NewTUI(services, initialRoom)
+		tuiProgram := tea.NewProgram(appModel, tea.WithAltScreen())
+		events.setTUI(tuiProgram)
 		if _, err := tuiProgram.Run(); err != nil {
 			fmt.Fprintf(os.Stderr, "Galat menjalankan TUI: %v\n", err)
 			os.Exit(1)
