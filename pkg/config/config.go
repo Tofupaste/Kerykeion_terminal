@@ -37,8 +37,11 @@ func DefaultConfig() (*Config, error) {
 
 	configDir := filepath.Join(userConfig, "kerykeion")
 	dataDir := filepath.Join(userCache, "kerykeion")
-	downloadsDir := filepath.Join(dataDir, "downloads")
-	partialDir := filepath.Join(downloadsDir, ".partial")
+	downloadsDir, err := downloadsDirectory()
+	if err != nil {
+		return nil, err
+	}
+	partialDir := filepath.Join(dataDir, "downloads", ".partial")
 	cacheDir := filepath.Join(dataDir, "cache")
 
 	defaultName := os.Getenv("USER")
@@ -109,39 +112,50 @@ func LoadConfig(customDir string) (*Config, error) {
 		return cfg, nil
 	}
 
+	cfg.applyStored(stored)
+
+	if err := cfg.EnsureDirs(); err != nil {
+		return nil, err
+	}
+	return cfg, nil
+}
+
+func (c *Config) applyStored(stored Config) {
 	if stored.DisplayName != "" {
-		cfg.DisplayName = stored.DisplayName
+		c.DisplayName = stored.DisplayName
 	}
 	if stored.TCPPort != 0 {
-		cfg.TCPPort = stored.TCPPort
+		c.TCPPort = stored.TCPPort
 	}
 	if stored.UDPPort != 0 {
-		cfg.UDPPort = stored.UDPPort
+		c.UDPPort = stored.UDPPort
 	}
 	if stored.MaxFileSize != 0 {
-		cfg.MaxFileSize = stored.MaxFileSize
+		c.MaxFileSize = stored.MaxFileSize
 	}
 	if stored.AutoDownloadImageMax != 0 {
-		cfg.AutoDownloadImageMax = stored.AutoDownloadImageMax
+		c.AutoDownloadImageMax = stored.AutoDownloadImageMax
 	}
 	if stored.RetentionDays != 0 {
-		cfg.RetentionDays = stored.RetentionDays
+		c.RetentionDays = stored.RetentionDays
 	}
-	cfg.OfficeKey = stored.OfficeKey
+	if stored.DownloadsDir != "" && filepath.Clean(stored.DownloadsDir) != filepath.Join(c.DataDir, "downloads") {
+		c.DownloadsDir = stored.DownloadsDir
+	}
+	c.OfficeKey = stored.OfficeKey
 	if stored.AIHost != "" {
-		cfg.AIHost = stored.AIHost
+		c.AIHost = stored.AIHost
 	}
 	if stored.AIKey != "" {
-		cfg.AIKey = stored.AIKey
+		c.AIKey = stored.AIKey
 	}
 	if stored.AIModel != "" {
-		cfg.AIModel = stored.AIModel
+		c.AIModel = stored.AIModel
 	}
 	if stored.Language == "en" || stored.Language == "id" {
-		cfg.Language = stored.Language
+		c.Language = stored.Language
 	}
 
-	return cfg, nil
 }
 
 func (c *Config) Save() error {

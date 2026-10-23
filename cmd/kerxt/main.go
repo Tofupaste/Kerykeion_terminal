@@ -117,6 +117,7 @@ func main() {
 	defer roomMgr.Stop()
 
 	tferMgr := transfer.New(cfg, idMgr, store, disc, transMgr, events.onProgress, events.onAnnounce)
+	tferMgr.SetMessaging(msgSvc)
 	tferMgr.Start()
 	defer tferMgr.Stop()
 

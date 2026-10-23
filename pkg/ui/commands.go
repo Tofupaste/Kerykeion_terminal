@@ -119,8 +119,8 @@ var CommandCatalog = map[string]CommandHelp{
 	"get": {
 		Command:     "/get",
 		Summary:     "Unduh file dari pengumuman room",
-		Usage:       "/get <nomor_pengumuman>",
-		Description: "Mengunduh file berdasarkan nomor pengumuman [#no] di aplikasi ini. File dikirim dari cache pemilik atau anggota room lain yang memilikinya. Lokasi penyimpanan ditampilkan setelah selesai. Di TUI, jalankan dari panel sistem.",
+		Usage:       "/get <nomor|ID_file>",
+		Description: "Mengunduh file berdasarkan nomor pengumuman [#no] atau ID file lengkap dari Ctrl+Y. Lampiran DM yang sudah diunduh menampilkan lokasi file; jika belum tersedia, unduhan dicoba ulang dari pengirim. File dikirim dari cache pemilik atau anggota room lain yang memilikinya. Lokasi penyimpanan ditampilkan setelah selesai. Di TUI, jalankan dari panel sistem.",
 		Example:     "/get 1",
 		CommonError: "Nomor pengumuman tidak ditemukan di room ini.",
 	},

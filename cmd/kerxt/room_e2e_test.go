@@ -56,6 +56,7 @@ func newRoomTestPeer(t *testing.T, name string) *roomTestPeer {
 	p.messages = messaging.New(id, store, trans, disc, nil, nil)
 	p.rooms = room.New(id, store, disc, trans, func(event, name, detail string) { p.events <- event })
 	p.transfers = transfer.New(cfg, id, store, disc, trans, func(progress transfer.TransferProgress) { p.progress <- progress }, func(announcement protocol.FileAnnouncePayload) { p.announcements <- announcement })
+	p.transfers.SetMessaging(p.messages)
 	p.transfers.Start()
 	dispatcher := frameDispatcher{messages: p.messages, rooms: p.rooms, transfers: p.transfers}
 	trans.SetFrameHandler(dispatcher.handle)

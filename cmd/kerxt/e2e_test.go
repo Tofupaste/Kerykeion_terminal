@@ -118,6 +118,7 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 	rMgrBob := room.New(idBob, dbBob, discBob, transBob, nil)
 
 	tferAlice := transfer.New(cfgAlice, idAlice, dbAlice, discAlice, transAlice, nil, nil)
+	tferAlice.SetMessaging(msgAlice)
 	tferAlice.Start()
 	defer tferAlice.Stop()
 
@@ -126,6 +127,7 @@ func TestE2EMessagingAndFileTransfer(t *testing.T) {
 		downloadCompletion(bobDoneCh),
 		nil,
 	)
+	tferBob.SetMessaging(msgBob)
 	tferBob.Start()
 	defer tferBob.Stop()
 
@@ -257,6 +259,15 @@ func checkFileTransfer(t *testing.T, checks e2eChecks) {
 	offer, err := tferAlice.SendFile(testFile, idBob.PeerID(), "")
 	if err != nil {
 		t.Fatalf("Alice failed to send file: %v", err)
+	}
+
+	select {
+	case message := <-checks.bobMessages:
+		if message.FileRef != offer.FileID {
+			t.Fatal("DM attachment missing file ID")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("DM attachment did not reach conversation history")
 	}
 
 	select {

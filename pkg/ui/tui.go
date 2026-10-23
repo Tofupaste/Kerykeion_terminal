@@ -23,15 +23,17 @@ import (
 )
 
 type AppModel struct {
-	cfg       *config.Config
-	idMgr     *identity.Manager
-	store     *db.Store
-	discovery *discovery.Discovery
-	messaging *messaging.Service
-	roomMgr   *room.Manager
-	transfer  *transfer.Manager
-	transport *transport.Manager
-	aiSvc     *ai.Service
+	copyIDs        *copyIDMenu
+	copyGeneration uint64
+	cfg            *config.Config
+	idMgr          *identity.Manager
+	store          *db.Store
+	discovery      *discovery.Discovery
+	messaging      *messaging.Service
+	roomMgr        *room.Manager
+	transfer       *transfer.Manager
+	transport      *transport.Manager
+	aiSvc          *ai.Service
 
 	width          int
 	height         int
@@ -318,7 +320,7 @@ func (m *AppModel) updateViewportContent() {
 			authorName := m.messageAuthor(msg.AuthorID)
 			statusMark := m.messageStatus(msg)
 
-			sb.WriteString(fmt.Sprintf("[%s] %s%s: %s\n", tStr, authorName, statusMark, msg.Body))
+			sb.WriteString(fmt.Sprintf("[%s] %s%s: %s\n", tStr, authorName, statusMark, m.messageBody(msg)))
 		}
 	}
 
@@ -362,6 +364,9 @@ func (m *AppModel) messageStatus(message db.MessageRecord) string {
 }
 
 func (m *AppModel) View() string {
+	if m.copyIDs != nil {
+		return m.renderCopyIDs()
+	}
 	if m.picker != nil {
 		return m.renderAttachmentPicker()
 	}

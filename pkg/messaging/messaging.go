@@ -125,6 +125,10 @@ func (s *Service) GetLink(index int) (string, bool) {
 }
 
 func (s *Service) SendDM(targetPeerID, body string) (*db.MessageRecord, error) {
+	return s.sendDM(targetPeerID, body, "")
+}
+
+func (s *Service) sendDM(targetPeerID, body, fileRef string) (*db.MessageRecord, error) {
 	msgID := s.GenerateMsgID()
 	now := time.Now().Unix()
 
@@ -133,6 +137,7 @@ func (s *Service) SendDM(targetPeerID, body string) (*db.MessageRecord, error) {
 		MsgID:    msgID,
 		AuthorID: s.idMgr.PeerID(),
 		Room:     "",
+		FileRef:  fileRef,
 		Body:     body,
 		TS:       now,
 	}
@@ -146,10 +151,13 @@ func (s *Service) SendDM(targetPeerID, body string) (*db.MessageRecord, error) {
 		Timestamp:      now,
 		Signature:      pkt.Sig,
 		Status:         "queued",
+		FileRef:        fileRef,
 		CreatedAt:      time.Now(),
 	}
 
-	_, _ = s.store.SaveMessage(rec)
+	if _, err := s.store.SaveMessage(rec); err != nil {
+		return nil, err
+	}
 	s.RegisterLinks(body)
 
 	if s.onNewMessage != nil {

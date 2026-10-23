@@ -196,5 +196,5 @@ func (m *AppModel) panelHints() string {
 			hints = "Ctrl+O " + m.tr("Lampirkan file") + " · " + hints
 		}
 	}
-	return hints
+	return "Ctrl+Y " + m.tr("Salin ID") + " · " + hints
 }

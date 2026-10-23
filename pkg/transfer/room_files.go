@@ -107,22 +107,42 @@ func (m *Manager) HandleFileAnnounce(payload []byte, fromPeerID string) {
 
 func (m *Manager) announcedFile(room, id string) (protocol.FileAnnouncePayload, bool) {
 	m.announcementsMu.RLock()
-	defer m.announcementsMu.RUnlock()
 	for _, announce := range m.announcements {
 		if announce.Room == room && announce.FileID == id {
+			m.announcementsMu.RUnlock()
 			return announce, true
+		}
+	}
+	m.announcementsMu.RUnlock()
+	messages, _ := m.store.GetFileMessages(id)
+	for _, message := range messages {
+		if message.ConversationID == room {
+			if announce, ok := attachmentAnnouncement(message); ok {
+				announce.Room = room
+				return announce, true
+			}
 		}
 	}
 	return protocol.FileAnnouncePayload{}, false
 }
 
 func (m *Manager) cachedRoomFile(room, id, requester string) (string, error) {
-	if !validFileID(id) || !m.roomMember(room, requester) {
-		return "", fmt.Errorf("file is not available to this room member")
+	if !validFileID(id) {
+		return "", fmt.Errorf("invalid file ID")
 	}
-	if _, ok := m.announcedFile(room, id); !ok {
-		return "", fmt.Errorf("file was not announced in this room")
+	if room == "" {
+		if _, ok := m.directFileForPeer(id, requester); !ok {
+			return "", fmt.Errorf("this file was not sent to you")
+		}
+	} else {
+		if !m.roomMember(room, requester) {
+			return "", fmt.Errorf("file is not available to this room member")
+		}
+		if _, ok := m.announcedFile(room, id); !ok {
+			return "", fmt.Errorf("file was not announced in this room")
+		}
 	}
+
 	cached, err := m.store.GetMediaCache(id)
 	if err != nil {
 		return "", fmt.Errorf("cached file is unavailable")
@@ -154,6 +174,9 @@ func (m *Manager) serveFileRequest(connID string, req protocol.FileRequestPayloa
 		return
 	}
 	announce, _ := m.announcedFile(req.Room, req.FileID)
+	if req.Room == "" {
+		announce, _ = m.directFileForPeer(req.FileID, peerID)
+	}
 	offer := protocol.FileOfferPayload{V: 1, FileID: req.FileID, SHA256: hash, Room: req.Room, Filename: announce.Filename, Size: size, ChunkSize: protocol.ChunkSize, TotalChunks: int((size + protocol.ChunkSize - 1) / protocol.ChunkSize)}
 	conn, ok := m.transport.Connection(connID)
 	if ok {

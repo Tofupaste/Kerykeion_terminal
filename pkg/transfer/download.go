@@ -27,6 +27,13 @@ func (m *Manager) PullAnnouncedFile(number int) error {
 	if !ok {
 		return fmt.Errorf("file announcement #%d was not found", number)
 	}
+	return m.pullAnnouncement(announce)
+}
+
+func (m *Manager) pullAnnouncement(announce protocol.FileAnnouncePayload) error {
+	if m.existingDownload(announce) {
+		return nil
+	}
 	m.pendingOffersMu.Lock()
 	if m.activePulls[announce.FileID] {
 		m.pendingOffersMu.Unlock()
@@ -42,6 +49,9 @@ func (m *Manager) PullAnnouncedFile(number int) error {
 	var pathError *os.PathError
 	var linkError *os.LinkError
 	if errors.As(err, &pathError) || errors.As(err, &linkError) || errors.Is(err, m.ctx.Err()) {
+		return err
+	}
+	if announce.Room == "" {
 		return err
 	}
 	return m.pullFromRoomCache(announce, err)

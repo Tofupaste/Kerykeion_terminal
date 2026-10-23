@@ -5,6 +5,17 @@ import "fmt"
 const defaultStatusText = "Ketik /help untuk panduan"
 
 var englishText = map[string]string{
+	"Meminta file %s...":                                     "Requesting file %s...",
+	"Gunakan: /get <nomor|ID_file>":                          "Usage: /get <number|file_ID>",
+	"Unduh: F6 → /get %s":                                    "Download: F6 → /get %s",
+	"Salin ID":                                               "Copy ID",
+	"↑/↓ Pilih · Enter Salin · Esc Kembali":                  "↑/↓ Select · Enter Copy · Esc Back",
+	"Daftar tetap diam agar teks bisa dipilih dengan mouse.": "This list stays still so you can also select text with the mouse.",
+	"Clipboard tidak tersedia. Pilih teks ID lalu gunakan tombol salin terminal.": "Clipboard unavailable. Select the ID text and use your terminal copy shortcut.",
+	"ID disalin: %s": "ID copied: %s",
+	"Menyalin...":    "Copying...",
+
+	"Unduh: F6 → /get %d":                                                      "Download: F6 → /get %d",
 	"Identitas kamu: %s\nID: %s\n":                                             "Your identity: %s\nID: %s\n",
 	"Gunakan: /dm <nama|ID|nama#ID>":                                           "Usage: /dm <name|ID|name#ID>",
 	"Rekan '%s' cocok dengan beberapa pengguna. Gunakan ID atau nama#ID:":      "Peer '%s' matches multiple users. Use an ID or name#ID:",

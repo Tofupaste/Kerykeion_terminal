@@ -90,7 +90,7 @@ Flags go before the subcommand. For example:
 kerxt --config /tmp/kerxt-alice --name Alice --port 43100 --udp-port 43101
 ```
 
-`--config` separates identity, history, configuration, and downloads from the default application directories. Two instances using the same directory share the same identity and database; use separate directories for separate test peers.
+`--config` separates identity, history, configuration, and downloads from the default application directories (downloads use `<config-dir>/downloads` in this mode). Two instances using the same directory share the same identity and database; use separate directories for separate test peers.
 
 ### Panels and input focus
 
@@ -116,6 +116,7 @@ After opening a chat, press F6 before entering a command such as `/who` or `/lea
 | Tab | Complete commands or room names while system input has focus |
 | Ctrl+C | Quit |
 | Ctrl+O | Open the file picker while chat has focus |
+| Ctrl+Y | Open a stable list of user and file IDs for copying |
 
 Minimizing chat does not leave the room or disconnect the peer. Messages received for the active conversation remain in its history, and a counter appears while the panel is hidden. F4 reopens it and clears that counter. The F4 hint is hidden while chat is visible.
 
@@ -147,6 +148,8 @@ From the system panel, `/send` also accepts a complete path containing spaces, w
 
 Relative paths are resolved from the directory where `kerxt` was launched. `/send` starts sending immediately; it does not open the picker or request confirmation. The line-based interface (`--repl`) supports `/send` with the same path rules, but has no Ctrl+O picker. Paths are not executed as shell commands or expanded using shell variables.
 
+Confirmed attachments appear in the DM or room history with their filename, size, and SHA-256 file ID. Room attachments also show the local `/get` number when their announcement is available.
+
 Selecting a file for a room sends an announcement to its current members. Recipients download it with `/get <number>` from the system panel. Use the number displayed in your own application; announcement numbers are assigned locally. Completion shows the saved file path. Both peers need this version of the file-request protocol.
 
 English is the default TUI language. Use F2, `/lang en`, or `/lang id` to change it. Run slash commands from the system panel.
@@ -169,6 +172,14 @@ From the system panel, these selectors all work:
 
 The IDs above are examples; copy an actual selector from `/who`. Full IDs are accepted too. A name alone works when it identifies one peer. Duplicate names and ambiguous ID prefixes show choices without changing the active conversation. A qualified selector must match both the name and ID. `/go` accepts the same peer selectors, while joined room names retain priority.
 
+### Copying IDs
+
+Press Ctrl+Y to open a snapshot of your ID, discovered peer IDs, and file IDs from loaded chat messages and announcements. Use Up/Down to select an entry and Enter to copy its complete ID, even when the displayed label is shortened. Esc returns to the previous focus and preserves the chat draft. Ctrl+C still quits the app.
+
+The list stays unchanged while new messages and transfer updates arrive in the background. This also gives you a stable place to select the ID with the mouse and use your terminal's copy shortcut. Selecting text in the live TUI can be cleared when its contents redraw.
+
+Native clipboard access uses Windows clipboard APIs, `pbcopy` on macOS, or Linux clipboard tools. Wayland needs `wl-copy` (`wl-clipboard`); X11 needs `xclip` or `xsel`. If clipboard access fails, the list remains open with an error so you can use terminal selection instead. The copy shortcut is available in the TUI, not the line-based REPL.
+
 ### Commands
 
 | Command | Action |
@@ -183,7 +194,7 @@ The IDs above are examples; copy an actual selector from `/who`. Full IDs are ac
 | `/room transfer <name> <peer>` | Transfer the master role |
 | `/go <target>` | Open a joined room or a conversation with a discovered peer |
 | `/send <path>` | Send immediately to the active DM or prepare a room announcement; spaces, surrounding quotes, and `~/` are supported |
-| `/get <number>` | Download the locally numbered room file announcement and show its saved path |
+| `/get <number\|file_ID>` | Download using a local announcement number or the complete file ID copied with Ctrl+Y; show the saved path |
 | `/leave [room]` | Leave a room locally and notify online members |
 | `/disband [room]` | Close a room as its master |
 | `/name <new_name>` | Change the display name without replacing the identity |
@@ -342,11 +353,20 @@ The persisted bitmap supports resuming when the same file is offered again. Auto
 
 ### Room file downloads
 
-A room upload is cached by SHA-256 and announced to current members with `FILE_ANNOUNCE`. Each receiver assigns a local number; repeated announcements for the same room, sender, and file retain that number. Announcements are kept in memory for the current process, so the owner must announce again after a restart or for members who joined later.
+A room upload creates a signed attachment message in chat history, is cached by SHA-256, and is announced to current members with `FILE_ANNOUNCE`. Each receiver assigns a local number; repeated announcements for the same room, sender, and file retain that number. Announcement numbers are kept in memory for the current process. Full file IDs can also be resolved from signed attachment history, including after restarting or joining later, while the source still has a cached copy.
 
-`/get <number>` opens a separate file connection and sends `FILE_REQUEST`. The owner checks room membership and the cached file's hash, then sends `FILE_OFFER` back over that connection. The receiver's bitmap selects missing chunks. The receiver reports completion only after hash verification, a successful rename into the downloads folder, and an updated transfer record.
+`/get <number>` and `/get <full-file-ID>` open a separate file connection and sends `FILE_REQUEST`. The owner checks room membership and the cached file's hash, then sends `FILE_OFFER` back over that connection. The receiver's bitmap selects missing chunks. The receiver reports completion only after hash verification, a successful rename into the downloads folder, and an updated transfer record.
 
 If the owner cannot serve the request, the requester sends `FILE_WHO_HAS` to other recorded room members. A member with a cached copy replies with `FILE_HAVE` and can serve the same request. Completed downloads remain available as cache sources for seven days. This fallback selects one source at a time; it does not download chunks from several peers simultaneously. A missing source or failed save is reported as an error.
+
+DM attachments normally download automatically. `/get <full-file-ID>` displays an existing verified download or requests the file again from the original sender. A sender can also save its own cached attachment by ID. Knowing a DM file ID does not grant unrelated peers permission to retrieve it.
+
+Use the file ID entry in Ctrl+Y, not a user ID. Both are hashes, but `/get` only resolves known file attachments. For example:
+
+```text
+/get 3
+/get <paste-the-complete-file-ID-here>
+```
 
 ### AI collaboration and model sharing
 
@@ -452,7 +472,9 @@ The application uses `os.UserConfigDir` and `os.UserCacheDir` for its default lo
 | Windows | `%APPDATA%\kerykeion\` | `%LOCALAPPDATA%\kerykeion\` |
 | macOS | `~/Library/Application Support/kerykeion/` | `~/Library/Caches/kerykeion/` |
 
-The configuration directory contains `identity.key`, `config.json`, and `history.db`. The cache root contains `downloads/`, `downloads/.partial/`, and `cache/`.
+The configuration directory contains `identity.key`, `config.json`, and `history.db`. Completed files go to the operating system Downloads directory: Linux follows `XDG_DOWNLOAD_DIR` from `user-dirs.dirs` (falling back to `~/Downloads`), macOS uses `~/Downloads`, and Windows uses the Downloads Known Folder, including redirected locations. The completion message displays the exact saved path. Partial files and upload caches remain under the application cache root.
+
+Older configurations pointing to the application cache's `downloads/` directory automatically use the new default. Existing files are left where they were. An explicitly configured alternative `downloads_dir` is preserved. `--config <dir>` still isolates downloads under `<dir>/downloads` for testing. Uninstalling does not delete completed files from the OS Downloads folder.
 
 SQLite runs in WAL mode. It stores peers, rooms, membership, tombstones, messages, outbox entries, transfer records, and media cache metadata. File contents are stored on disk rather than inside SQLite.
 
@@ -460,7 +482,7 @@ Startup cleanup removes messages older than the configured retention period, exp
 
 ## Current limitations
 
-- File announcements are not persisted or replayed to later joiners. Multi-source parallel downloads and automatic transfer redial are not implemented.
+- Local announcement numbers are not persisted. Use the full file ID from attachment history after restarting. Multi-source parallel downloads and automatic transfer redial are not implemented.
 - `HELLO` IDs must match an existing TLS-derived peer ID, but incoming TLS still allows clients without a certificate. Full inbound identity enforcement needs work.
 - Incoming direct file offers are accepted without a consent prompt. Room file requests are restricted to recorded members.
 - `/add` sends a UDP announcement; it does not establish a direct TCP connection. It currently advertises the supplied port rather than the caller's actual listening port.

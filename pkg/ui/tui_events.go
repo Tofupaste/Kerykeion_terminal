@@ -10,6 +10,13 @@ import (
 )
 
 func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if result, ok := msg.(clipboardResult); ok {
+		m.applyClipboardResult(result)
+		return m, nil
+	}
+	if key, ok := msg.(tea.KeyMsg); ok && m.copyIDs != nil {
+		return m, m.handleCopyKey(key)
+	}
 	if result, ok := msg.(attachmentDirectoryResult); ok {
 		m.applyAttachmentDirectory(result)
 		return m, nil
@@ -51,6 +58,9 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	switch msg.Type {
 	case tea.KeyCtrlC:
 		return tea.Quit, true
+	case tea.KeyCtrlY:
+		m.openCopyIDs()
+		return nil, true
 	case tea.KeyCtrlO:
 		return m.openAttachmentPicker(), true
 	case tea.KeyEsc:
