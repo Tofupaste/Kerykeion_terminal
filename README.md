@@ -90,7 +90,7 @@ Flags go before the subcommand. For example:
 kerxt --config /tmp/kerxt-alice --name Alice --port 43100 --udp-port 43101
 ```
 
-`--config` separates identity, history, configuration, and downloads from the default application directories. Two instances using the same directory share the same identity and database; use separate directories for separate test peers.
+`--config` separates identity, history, configuration, and downloads from the default application directories (downloads use `<config-dir>/downloads` in this mode). Two instances using the same directory share the same identity and database; use separate directories for separate test peers.
 
 ### Panels and input focus
 
@@ -146,6 +146,8 @@ From the system panel, `/send` also accepts a complete path containing spaces, w
 ```
 
 Relative paths are resolved from the directory where `kerxt` was launched. `/send` starts sending immediately; it does not open the picker or request confirmation. The line-based interface (`--repl`) supports `/send` with the same path rules, but has no Ctrl+O picker. Paths are not executed as shell commands or expanded using shell variables.
+
+Confirmed attachments appear in the DM or room history with their filename, size, and SHA-256 file ID. Room attachments also show the local `/get` number when their announcement is available.
 
 Selecting a file for a room sends an announcement to its current members. Recipients download it with `/get <number>` from the system panel. Use the number displayed in your own application; announcement numbers are assigned locally. Completion shows the saved file path. Both peers need this version of the file-request protocol.
 
@@ -330,7 +332,7 @@ The persisted bitmap supports resuming when the same file is offered again. Auto
 
 ### Room file downloads
 
-A room upload is cached by SHA-256 and announced to current members with `FILE_ANNOUNCE`. Each receiver assigns a local number; repeated announcements for the same room, sender, and file retain that number. Announcements are kept in memory for the current process, so the owner must announce again after a restart or for members who joined later.
+A room upload creates a signed attachment message in chat history, is cached by SHA-256, and is announced to current members with `FILE_ANNOUNCE`. Each receiver assigns a local number; repeated announcements for the same room, sender, and file retain that number. Announcements are kept in memory for the current process, so the owner must announce again after a restart or for members who joined later.
 
 `/get <number>` opens a separate file connection and sends `FILE_REQUEST`. The owner checks room membership and the cached file's hash, then sends `FILE_OFFER` back over that connection. The receiver's bitmap selects missing chunks. The receiver reports completion only after hash verification, a successful rename into the downloads folder, and an updated transfer record.
 
@@ -354,7 +356,9 @@ The application uses `os.UserConfigDir` and `os.UserCacheDir` for its default lo
 | Windows | `%APPDATA%\kerykeion\` | `%LOCALAPPDATA%\kerykeion\` |
 | macOS | `~/Library/Application Support/kerykeion/` | `~/Library/Caches/kerykeion/` |
 
-The configuration directory contains `identity.key`, `config.json`, and `history.db`. The cache root contains `downloads/`, `downloads/.partial/`, and `cache/`.
+The configuration directory contains `identity.key`, `config.json`, and `history.db`. Completed files go to the operating system Downloads directory: Linux follows `XDG_DOWNLOAD_DIR` from `user-dirs.dirs` (falling back to `~/Downloads`), macOS uses `~/Downloads`, and Windows uses the Downloads Known Folder, including redirected locations. The completion message displays the exact saved path. Partial files and upload caches remain under the application cache root.
+
+Older configurations pointing to the application cache's `downloads/` directory automatically use the new default. Existing files are left where they were. An explicitly configured alternative `downloads_dir` is preserved. `--config <dir>` still isolates downloads under `<dir>/downloads` for testing. Uninstalling does not delete completed files from the OS Downloads folder.
 
 SQLite runs in WAL mode. It stores peers, rooms, membership, tombstones, messages, outbox entries, transfer records, and media cache metadata. File contents are stored on disk rather than inside SQLite.
 
