@@ -141,8 +141,8 @@ Selecting a file shows its path, size, and recipient before sending. Esc preserv
 From the system panel, `/send` also accepts a complete path containing spaces, with or without surrounding quotes:
 
 ```text
-/send ~/Downloads/WhatsApp Image 2026-10-19 at 20.41.48(1).jpeg
-/send "/home/aria/Downloads/WhatsApp Image 2026-10-19 at 20.41.48(1).jpeg"
+/send ~/Downloads/Image.jpeg
+/send "/home/user/Downloads/Image.jpeg"
 ```
 
 Relative paths are resolved from the directory where `kerxt` was launched. `/send` starts sending immediately; it does not open the picker or request confirmation. The line-based interface (`--repl`) supports `/send` with the same path rules, but has no Ctrl+O picker. Paths are not executed as shell commands or expanded using shell variables.
@@ -282,15 +282,17 @@ sequenceDiagram
 
 Messages use UUIDv7 IDs when generation succeeds. The sender waits up to three seconds for an acknowledgment. If delivery fails or the acknowledgment does not arrive, it adds the message to the persistent outbox. A worker checks due entries every two seconds, and discovery events can trigger retries earlier. Outbox entries have a seven-day expiry.
 
-An ACK currently precedes the receiver's database insert. The displayed `delivered` status therefore confirms an acknowledgment, not a guarantee that the receiver committed the message to disk. Retry scheduling and per-recipient room acknowledgments also need further work.
+An ACK currently precedes the receiver's database insert. The displayed `delivered` status therefore confirms an acknowledgment, not a guarantee that the receiver committed the message to disk. Room ACKs are matched by message ID and recipient. The displayed status is shared by the room message, so it does not indicate that every member has acknowledged it.
 
 ### Room lifecycle
 
 Room names are normalized to lowercase and must contain 2-32 letters, digits, hyphens, or underscores. A room record includes a name, generation timestamp, master ID, local role, and state.
 
-`/room new <name>` creates a local room and adds the creator as its master. `/join <name>` first checks local active rooms, then sends `ROOM_QUERY` requests. A received `ROOM_HERE` response supplies metadata for joining. If no response arrives, the current implementation creates a new room automatically.
+`/room new <name>` creates a local room and adds the creator as its master. `/join <name>` sends `ROOM_QUERY` requests, even when a local room already exists. The reply goes to the query's UDP source address, rather than its advertised TCP port. A received `ROOM_HERE` response supplies metadata for joining. If no response arrives, the application reopens an active local room or creates a new room when none exists. A blocked discovery path can still cause separate rooms with the same name.
 
-After joining, the process sends a signed join event and requests missing history. Room messages are sent directly to locally recorded members. The master role controls transfer of ownership and disbanding; it is not a relay server for chat.
+After joining, the process opens a chat connection and sends a signed join event before requesting history. The receiving member checks the room generation, adds the joining peer, and distributes `ROOM_META` to the recorded members. Receivers merge the member list for their active room. Room messages are then sent directly to recorded members; room control and history requests can establish a connection from discovery or saved peer addresses when necessary. The master controls ownership transfer and disbanding; it is not a chat relay.
+
+History synchronization requests unknown messages from the last seven days, within the serving peer's latest 500 stored messages. Responses are split to fit the protocol frame limit. Each message must match the requested room, its author's key fingerprint, and its signature before insertion. Known message IDs prevent duplicates. Join succeeds after the responding peer confirms membership; a missing confirmation produces an error instead of reporting a completed join. The TUI reloads the active room when history arrives, preserving the current draft. History can only be recovered from peers that still store it.
 
 Leaving marks local membership as left. Disbanding records a tombstone for that room generation and sends a signed close event. The current implementation does not provide reliable propagation of every room event to offline members.
 
@@ -334,10 +336,9 @@ Startup cleanup removes messages older than the configured retention period, exp
 
 ## Current limitations
 
-- Room discovery currently sends a UDP response to the query's advertised TCP port. `ROOM_META` is sent by the room manager but has no handler in the main dispatcher. Cross-device room joining and membership synchronization are incomplete.
 - Room file announcements and pull requests are not connected into a complete download flow. Multi-source serving is unfinished.
 - Incoming TLS connections do not fully enforce peer identity binding, and a `HELLO` payload can replace the connection's recorded peer ID. Outgoing fingerprint checks do not close this gap.
-- Room history sync responses are saved without verifying every message signature. File-offer validation, receive-side size limits, and consent are incomplete.
+- File-offer validation, receive-side size limits, and consent are incomplete.
 - `/add` sends a UDP announcement; it does not establish a direct TCP connection. It currently advertises the supplied port rather than the caller's actual listening port.
 - `/doctor` checks local interfaces and socket behavior. Its UDP test is loopback, not a test of broadcast delivery between laptops.
 - Two local instances need separate configuration directories. Different UDP ports prevent ordinary discovery between them; adding IP aliases alone does not isolate listeners bound to all addresses.
@@ -355,11 +356,16 @@ go test -race ./...
 
 # Run the two-peer integration test on one machine
 go test -v ./cmd/kerxt -run TestE2EMessagingAndFileTransfer -count=1
+
+# Exercise room joining, history, and chat over local UDP/TLS
+go test -race -v ./cmd/kerxt -run TestE2ERoom -count=1
 ```
 
 The integration test runs two identities and databases with local TLS connections. It checks a direct message, its ACK, local room creation, and a small direct file transfer. Peer addresses are seeded directly; the test does not exercise UDP discovery.
 
-UI tests cover room creation with a running event loop, input routing by panel focus, language persistence, minimize/restore behavior, terminal sizing, and scrollbar movement. These tests do not establish real-device behavior across access points, interrupted transfers, or platform-specific firewall settings.
+Room integration tests use three independent identities, databases, TCP listeners, and UDP sockets. Signed discovery announcements are sent to explicit local UDP addresses; room queries, metadata, history, and messages then use the production callbacks and dispatcher. They cover joining after a separate local room was created, three-member chat, history larger than one frame, and repeated joins without duplicate messages. These tests do not exercise broadcast routing between physical devices.
+
+UI tests cover history refresh, room creation with a running event loop, input routing by panel focus, language persistence, minimize/restore behavior, terminal sizing, and scrollbar movement. These tests do not establish real-device behavior across access points, interrupted transfers, or platform-specific firewall settings.
 
 ## License
 
